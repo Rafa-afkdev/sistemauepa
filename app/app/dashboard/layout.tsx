@@ -3,7 +3,7 @@ import Sidebar from './components/Sidebar/Sidebar';
 import { NavBar } from './components/NavBar/NavBar';
 
 
-export default function LayoutDashboard({children} : {children: React.ReactElement}) {
+export default function LayoutDashboard({children} : {children: React.ReactNode}) {
   
   return (
     <div className='flex w-full h-full'>
