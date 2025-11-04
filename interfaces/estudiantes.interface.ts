@@ -2,7 +2,7 @@ import { Timestamp } from "firebase/firestore";
 
 export type TipoCedula = 'V' | 'E';
 
-export type EstadoEstudiante = 'activo' | 'retirado' | 'egresado';
+// export type EstadoEstudiante = 'activo' | 'retirado' | 'egresado';
 
 export interface Estudiantes {
    id?: string,
@@ -11,7 +11,7 @@ export interface Estudiantes {
    nombres: string,
    apellidos: string,
    sexo: string,
-   estado_estudiante: EstadoEstudiante; // Estado del estudiante en el sistema
+   estado: string; // Estado del estudiante en el sistema
    fechaNacimiento: string,
    createdAt?: Timestamp,
    periodo_escolar_actual?: string;
