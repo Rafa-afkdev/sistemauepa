@@ -10,7 +10,7 @@ import { useUser } from "@/hooks/use-user";
 import { Separator } from "@/components/ui/separator";
 
 export function SidebarRoutes() {
-  const user = useUser();
+  const { user } = useUser();
   const isDocente = user?.rol === "DOCENTE";
 
   return (

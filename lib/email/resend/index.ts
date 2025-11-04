@@ -1,5 +1,3 @@
-import { Resend } from "resend";
-
 interface SendEmailOptions {
   sendTo: string;
   subject: string;
@@ -9,28 +7,29 @@ interface SendEmailOptions {
 
 export async function SendEmail({ sendTo, subject, body, replyTo }: SendEmailOptions) {
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
-    if (!process.env.RESEND_API_KEY) {
-      throw new Error("RESEND_API_KEY is not configured");
-    }
-
-    const { data, error } = await resend.emails.send({
-    from: 'Acme <onboarding@resend.dev>',
-      to: sendTo,
-      subject: subject,
-      html: body,
-      replyTo: replyTo,
+    const response = await fetch("/api/send-email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sendTo,
+        subject,
+        body,
+        replyTo,
+      }),
     });
-    
-    if (error) {
-      console.error("Error sending email with Resend:", error);
-      throw new Error(error.message || "Failed to send email");
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error("Error sending email:", result.error);
+      throw new Error(result.error || "Failed to send email");
     }
 
-    console.log("Email sent successfully:", data);
-    return { success: true, data };
-  } catch (error) {
+    console.log("Email sent successfully:", result.data);
+    return { success: true, data: result.data };
+  } catch (error: any) {
     console.error("Failed to send email:", error);
     throw error;
   }

@@ -18,7 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 const PeriodosEscolares = () => {
-  const user = useUser();
+  const { user } = useUser();
   const [periodosEscolares, setPeriodosEscolares] = useState<PeriodosEscolares[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 

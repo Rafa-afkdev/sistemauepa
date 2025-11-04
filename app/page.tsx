@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from "framer-motion";
 import { BookOpen, Users, Award, Heart, MapPin, Phone, Mail, Clock, Target, Eye, GraduationCap, Star } from 'lucide-react';
 import Footer from './components/FooterLanding';
+import Image from 'next/image';
 
 const images = [
   '/28.webp',
@@ -48,56 +49,74 @@ export default function AdventistSchool() {
 
         {/* Hero Content */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-screen flex items-center">
-          <div className="max-w-3xl">
+          <div className="w-full flex items-center justify-between gap-8">
+            <div className="max-w-3xl flex-1">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6 }}
+                className="mb-8"
+              >
+                <div className="inline-block bg-white/10 backdrop-blur-md px-6 py-3 rounded-full border border-white/30">
+                  <p className="text-white font-bold text-sm tracking-wider">EDUCACIÓN CON PROPÓSITO</p>
+                </div>
+              </motion.div>
+
+              <motion.h1 
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white leading-tight mb-6"
+              >
+                U.E.P. Adventista
+                <span className="block text-white drop-shadow-lg">Alejandro Oropeza Castillo</span>
+              </motion.h1>
+              
+              <motion.p 
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.4 }}
+                className="text-xl sm:text-2xl text-white/90 mb-8 leading-relaxed"
+              >
+                <span className="font-semibold text-white drop-shadow-md">Mano, Mente y Corazón</span> - Formando a nuestros estudiantes con valores cristianos en Guarenas, Estado Miranda
+              </motion.p>
+
+              <motion.div 
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.6 }}
+                className="flex flex-col sm:flex-row gap-4"
+              >
+                {/* <a 
+                  href="#inscripciones"
+                  className="inline-flex items-center justify-center bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold text-lg px-8 py-4 rounded-full transition-all duration-300 shadow-2xl hover:shadow-yellow-400/50 transform hover:-translate-y-1"
+                >
+                  <GraduationCap className="mr-2" size={24} />
+                  Inscripciones Abiertas
+                </a> */}
+                <a 
+                  href="#vision"
+                  className="inline-flex items-center justify-center bg-white/10 backdrop-blur-md hover:bg-white/20 text-white font-bold text-lg px-8 py-4 rounded-full transition-all duration-300 border-2 border-white/30"
+                >
+                  Conoce Más
+                </a>
+              </motion.div>
+            </div>
+
             <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6 }}
-              className="mb-8"
-            >
-              <div className="inline-block bg-white/10 backdrop-blur-md px-6 py-3 rounded-full border border-yellow-400/30">
-                <p className="text-yellow-400 font-bold text-sm tracking-wider">EDUCACIÓN CON PROPÓSITO</p>
-              </div>
-            </motion.div>
-
-            <motion.h1 
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white leading-tight mb-6"
-            >
-              U.E.P Adventista
-              <span className="block text-yellow-400">Alejandro Oropeza Castillo</span>
-            </motion.h1>
-            
-            <motion.p 
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.4 }}
-              className="text-xl sm:text-2xl text-white/90 mb-8 leading-relaxed"
+              className="flex-shrink-0 hidden lg:flex items-center justify-center"
             >
-              <span className="font-semibold text-yellow-400">Mano, Mente y Corazón</span> - Formando a nuestros estudiantes con valores cristianos en Guarenas, Estado Miranda
-            </motion.p>
-
-            <motion.div 
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.6 }}
-              className="flex flex-col sm:flex-row gap-4"
-            >
-              {/* <a 
-                href="#inscripciones"
-                className="inline-flex items-center justify-center bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold text-lg px-8 py-4 rounded-full transition-all duration-300 shadow-2xl hover:shadow-yellow-400/50 transform hover:-translate-y-1"
-              >
-                <GraduationCap className="mr-2" size={24} />
-                Inscripciones Abiertas
-              </a> */}
-              <a 
-                href="#vision"
-                className="inline-flex items-center justify-center bg-white/10 backdrop-blur-md hover:bg-white/20 text-white font-bold text-lg px-8 py-4 rounded-full transition-all duration-300 border-2 border-white/30"
-              >
-                Conoce Más
-              </a>
+              <Image 
+                src="/LOGO-COLEGIO.png" 
+                alt="Logo U.E.P Adventista Alejandro Oropeza Castillo" 
+                width={300} 
+                height={300}
+                priority
+                className="object-contain"
+              />
             </motion.div>
           </div>
         </div>
@@ -178,8 +197,19 @@ export default function AdventistSchool() {
       </section>
 
       {/* Values Section */}
-      <section className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative py-24 overflow-hidden">
+        {/* Background Image with Overlay */}
+        <div className="absolute inset-0 z-0">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage: "url('/28.webp')",
+            }}
+          />
+          <div className="absolute inset-0 bg-black/70" />
+        </div>
+
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -187,10 +217,10 @@ export default function AdventistSchool() {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <h2 className="text-5xl font-bold text-blue-900 mb-4">
+            <h2 className="text-5xl font-bold text-white mb-4 drop-shadow-lg">
               Nuestros Pilares
             </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            <p className="text-xl text-white/90 max-w-3xl mx-auto drop-shadow-md">
               Educación integral que fortalece el cuerpo, la mente y el espíritu
             </p>
           </motion.div>
@@ -204,12 +234,12 @@ export default function AdventistSchool() {
               viewport={{ once: true }}
               className="group"
             >
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-8 hover:shadow-2xl transition-all duration-300 border-t-4 border-blue-600 h-full">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-800 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 hover:bg-white/20 hover:shadow-2xl transition-all duration-300 border border-white/20 h-full">
+                <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 border border-white/30">
                   <BookOpen className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-blue-900 mb-4">Excelencia Académica</h3>
-                <p className="text-gray-700 leading-relaxed">
+                <h3 className="text-2xl font-bold text-white mb-4">Excelencia Académica</h3>
+                <p className="text-white/90 leading-relaxed">
                   Programas educativos de calidad que preparan a nuestros estudiantes para los desafíos del futuro.
                 </p>
               </div>
@@ -223,12 +253,12 @@ export default function AdventistSchool() {
               viewport={{ once: true }}
               className="group"
             >
-              <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-2xl p-8 hover:shadow-2xl transition-all duration-300 border-t-4 border-red-600 h-full">
-                <div className="w-20 h-20 bg-gradient-to-br from-red-600 to-red-800 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 hover:bg-white/20 hover:shadow-2xl transition-all duration-300 border border-white/20 h-full">
+                <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 border border-white/30">
                   <Heart className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-red-900 mb-4">Valores Cristianos</h3>
-                <p className="text-gray-700 leading-relaxed">
+                <h3 className="text-2xl font-bold text-white mb-4">Valores Cristianos</h3>
+                <p className="text-white/90 leading-relaxed">
                   Formación espiritual sólida basada en principios bíblicos y el amor de Dios.
                 </p>
               </div>
@@ -242,12 +272,12 @@ export default function AdventistSchool() {
               viewport={{ once: true }}
               className="group"
             >
-              <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-2xl p-8 hover:shadow-2xl transition-all duration-300 border-t-4 border-yellow-400 h-full">
-                <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 hover:bg-white/20 hover:shadow-2xl transition-all duration-300 border border-white/20 h-full">
+                <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 border border-white/30">
                   <Users className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-yellow-900 mb-4">Comunidad Unida</h3>
-                <p className="text-gray-700 leading-relaxed">
+                <h3 className="text-2xl font-bold text-white mb-4">Comunidad Unida</h3>
+                <p className="text-white/90 leading-relaxed">
                   Un ambiente de fraternidad donde cada miembro es valorado y respetado.
                 </p>
               </div>
@@ -261,12 +291,12 @@ export default function AdventistSchool() {
               viewport={{ once: true }}
               className="group"
             >
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-8 hover:shadow-2xl transition-all duration-300 border-t-4 border-blue-800 h-full">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-800 to-blue-900 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 hover:bg-white/20 hover:shadow-2xl transition-all duration-300 border border-white/20 h-full">
+                <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 border border-white/30">
                   <Award className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-blue-900 mb-4">Desarrollo Integral</h3>
-                <p className="text-gray-700 leading-relaxed">
+                <h3 className="text-2xl font-bold text-white mb-4">Desarrollo Integral</h3>
+                <p className="text-white/90 leading-relaxed">
                   Cultivamos las habilidades físicas, mentales y espirituales de cada estudiante.
                 </p>
               </div>

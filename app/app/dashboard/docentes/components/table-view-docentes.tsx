@@ -10,15 +10,15 @@ import {
   } from "@/components/ui/table";
   import { LayoutList } from "lucide-react";
   import { Skeleton } from "@/components/ui/skeleton";  
-import { Teachers } from "@/interfaces/teachers.interface";
 import React from "react";
+import { User } from "@/interfaces/users.interface";
 
   export function TableDocentesView({
     docentes,
     getDocentes,
     isLoading,
   }: {
-    docentes: Teachers[];
+    docentes: User[];
     getDocentes: () => Promise<void>;
     isLoading: boolean;
   }) {
@@ -68,10 +68,12 @@ import React from "react";
             {!isLoading &&
               docentes &&
               docentes.map((docente) => (
-                <TableRow key={docente.uid}>
+                <TableRow key={docente.id}>
+                  <TableCell>{docente.cedula}</TableCell>
                   <TableCell>{docente.name}</TableCell>
                   <TableCell>{docente.apellidos}</TableCell>                 
-                  <TableCell>{docente.email}</TableCell>                 
+                  <TableCell>{docente.email}</TableCell>  
+                  <TableCell>{docente.password}</TableCell>               
                   <TableCell>{docente.telefono}</TableCell>                 
                 </TableRow>
               ))}

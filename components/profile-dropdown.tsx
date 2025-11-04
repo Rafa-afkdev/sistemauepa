@@ -29,7 +29,7 @@ import { showToast } from "nextjs-toast-notify";
 import { signOutAccount, updateDocument } from "@/lib/data/firebase";
 
 export function ProfileDropdown() {
-  const user = useUser();
+  const { user } = useUser();
   const [image, setimage] = useState<string | null>(null);
   const [isLoading, setisLoading] = useState<boolean>(false);
 

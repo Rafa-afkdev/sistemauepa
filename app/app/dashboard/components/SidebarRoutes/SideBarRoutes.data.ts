@@ -27,7 +27,7 @@ export const DataEstudiantesSidebar = [
     {
         icon: FileText,
         label: "Generar Constancias",
-        href: "/dashboard/create-constancia-student", 
+        href: "/app/dashboard/constancias", 
     },
 
 ]
@@ -36,7 +36,7 @@ export const DataDocenteSidebar = [
     {
         icon: UserPlus2,
         label: "Registrar",
-        href: "/dashboard/registrar-docente", 
+        href: "/app/dashboard/docentes", 
     },
     {
         icon: PenBoxIcon,

@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 
 export const useUser = () => {
   const [user, setUser] = useState<User | undefined | DocumentData>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
   const pathName = usePathname();
   const route = useRouter();
 
@@ -29,7 +30,7 @@ export const useUser = () => {
   };
 
   useEffect(() => {
-    return onAuthStateChanged(auth, async (authUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       //? SI EL USUARIO ESTÁ AUTENTICADO
       if (authUser) {
         const userInLocal = getFromLocalstorage("user");
@@ -38,15 +39,23 @@ export const useUser = () => {
         } else {
           await getUserFromDB(authUser.uid);
         }
+        setIsLoading(false);
       }
       //? SI EL USUARIO NO ESTÁ AUTENTICADO
       else {
+        // Limpiar localStorage si Firebase dice que no hay usuario
+        localStorage.removeItem("user");
+        setUser(undefined);
+        setIsLoading(false);
+        
         if (pathName.startsWith(protectedRoutes)) {
-          route.push("/auth");
+          route.replace("/auth");
         }
       }
     });
-  }, []);
 
-  return user;
+    return () => unsubscribe();
+  }, [pathName]);
+
+  return { user, isLoading };
 };

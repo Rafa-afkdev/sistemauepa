@@ -1,4 +1,5 @@
 import React from 'react'
+import Docentes from './components/docentes'
 
 const metadata = {
     title: "Docentes - UEPA",
@@ -7,6 +8,6 @@ const metadata = {
 
 export default function DocentesPage() {
   return (
-    <div>DocentesPage</div>
+    <Docentes />
   )
 }

@@ -2,14 +2,11 @@
  
 "use client";
 import { deleteDocument, getCollection } from "@/lib/data/firebase";
-import { CreateUpdateStudents } from "./create-update-students.form";
 import { useEffect, useState } from "react";
 import { useUser } from "@/hooks/use-user";
-import { TableStudentView } from "./table-view-student";
 import { Button } from "@/components/ui/button";
 import { Search, UserPlus2 } from "lucide-react";
 import { orderBy } from "firebase/firestore";
-import type { Estudiantes } from "@/interfaces/estudiantes.interface";
 import React from "react";
 
 import {
@@ -29,21 +26,24 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input"; // Importamos el componente Input de shadcn/ui
 import { showToast } from "nextjs-toast-notify";
+import { User } from "@/interfaces/users.interface";
+import { CreateUpdateDocentes } from "./create-update-docentes-form";
+import { TableDocentesView } from "./table-view-docentes";
 
-const Students = () => {
+const Docentes = () => {
   const { user } = useUser();
-  const [students, setStudents] = useState<Estudiantes[]>([]);
+  const [docentes, setDocentes] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchType, setSearchType] = useState<"cedula" | "nombres">("cedula");
 
-  const getStudents = async () => {
-    const path = `estudiantes`;
+  const getDocentes = async () => {
+    const path = `users`;
     const query = [orderBy("cedula", "asc")];
     setIsLoading(true);
     try {
-      const res = await getCollection(path, query) as Estudiantes[];
-      setStudents(res);
+      const res = await getCollection(path, query) as User[];
+      setDocentes(res);
     } catch (error) {
       console.error(error);
     } finally {
@@ -52,25 +52,25 @@ const Students = () => {
   };
 
   useEffect(() => {
-    if (user) getStudents();
+    if (user) getDocentes();
   }, [user]);
 
-  const filteredStudents = students.filter((student) => {
+  const filteredDocentes = docentes.filter((docente) => {
     if (searchType === "cedula") {
-      return student.cedula.toString().includes(searchQuery);
+      return docente.cedula.toString().includes(searchQuery);
     } else {
-      return student.nombres.toLowerCase().includes(searchQuery.toLowerCase());
+      return docente.name.toLowerCase().includes(searchQuery.toLowerCase());
     }
   });
 
-  const deleteStudent = async (student: Estudiantes) => {
-    const path = `estudiantes/${student.id}`;
+  const deleteDocente = async (docente: User) => {
+    const path = `users/${docente.id}`;
     setIsLoading(true);
     try {
       await deleteDocument(path);
-      showToast.success("El estudiante fue eliminado exitosamente");
-      const newStudents = students.filter((i) => i.id !== student.id);
-      setStudents(newStudents);
+      showToast.success("El docente fue eliminado exitosamente");
+      const newDocentes = docentes.filter((i) => i.id !== docente.id);
+      setDocentes(newDocentes);
     } catch (error: any) {
       showToast.error(error.message, { duration: 2500 });
     } finally {
@@ -82,13 +82,13 @@ const Students = () => {
     <Card>
       <CardHeader>
         <div className="flex justify-between items-center">
-        <CardTitle className="text-2xl">Estudiantes</CardTitle>
-        <CreateUpdateStudents getStudents={getStudents}>
+        <CardTitle className="text-2xl">Docentes</CardTitle>
+        <CreateUpdateDocentes getDocentes={getDocentes}>
             <Button variant="outline">
-              Agregar Estudiante
+              Agregar Docente
               <UserPlus2 className="ml-2 w-5" />
             </Button>
-          </CreateUpdateStudents>
+          </CreateUpdateDocentes>
         </div>
         <CardDescription>
           <div className="flex items-center mt-4 gap-4">
@@ -118,10 +118,10 @@ const Students = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <TableStudentView
-          deleteStudent={deleteStudent}
-          getStudents={getStudents}
-          students={filteredStudents}
+        <TableDocentesView
+        //   deleteDocente={deleteDocente}
+          getDocentes={getDocentes}
+          docentes={filteredDocentes}
           isLoading={isLoading}
         />
       </CardContent>
@@ -130,4 +130,4 @@ const Students = () => {
   );
 };
 
-export default Students;
+export default Docentes;
