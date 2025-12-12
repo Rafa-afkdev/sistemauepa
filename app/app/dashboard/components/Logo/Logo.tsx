@@ -8,7 +8,7 @@ export function Logo() {
     const router = useRouter()
   return (
     <div className="min-h-28 flex items-center justify-center border-b cursor-pointer"
-    onClick={() => router.push("/dashboard")}>
+    onClick={() => router.push("/app/dashboard")}>
         <div className="p-2">
           <Image 
             src="/LOGO-COLEGIO.png" 

@@ -22,11 +22,10 @@ export function SidebarRoutes() {
 
             <AccordionItem value="evaluaciones" className="group">
                 <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 1.30 }}
-                  whileDrag={{ scale: 0.9, rotate: 10 }}
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ duration: 0.2 }}
                 > 
-                  <AccordionTrigger className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:no-underline hover:bg-green-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-green-100 [&[data-state=open]]:dark:bg-slate-600">
+                  <AccordionTrigger className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all hover:no-underline hover:bg-green-50 dark:hover:bg-slate-700 data-[state=open]:bg-green-100 data-[state=open]:dark:bg-slate-600">
                     <ClipboardList className="w-5 h-5 text-green-600 dark:text-green-400 group-hover:text-green-700 group-data-[state=open]:text-green-600 dark:group-data-[state=open]:text-green-400" />
                     <span className="text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">
                       Evaluaciones
@@ -48,11 +47,10 @@ export function SidebarRoutes() {
 
             <AccordionItem value="ingreso-notas" className="group">
               <motion.div
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 1.30 }}
-                whileDrag={{ scale: 0.9, rotate: 10 }}
+                whileHover={{ scale: 1.02 }}
+                transition={{ duration: 0.2 }}
               > 
-                <AccordionTrigger className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:no-underline hover:bg-blue-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-blue-100 [&[data-state=open]]:dark:bg-slate-600">
+                <AccordionTrigger className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all hover:no-underline hover:bg-blue-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-blue-100 [&[data-state=open]]:dark:bg-slate-600">
                   <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:text-blue-700 group-data-[state=open]:text-blue-700 dark:group-data-[state=open]:text-blue-300" />
                   <span className="font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">
                     Notas
@@ -80,11 +78,10 @@ export function SidebarRoutes() {
             <>
               <AccordionItem value="estudiantes" className="group">
                 <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 1.30 }}
-                  whileDrag={{ scale: 0.9, rotate: 10 }}
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  <AccordionTrigger className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:no-underline hover:bg-blue-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-blue-100 [&[data-state=open]]:dark:bg-slate-600">
+                  <AccordionTrigger className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all hover:no-underline hover:bg-blue-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-blue-100 [&[data-state=open]]:dark:bg-slate-600">
                     <Users className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:text-blue-700 group-data-[state=open]:text-blue-700 dark:group-data-[state=open]:text-blue-300" />
                     <span className="font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">
                       Estudiantes
@@ -106,11 +103,10 @@ export function SidebarRoutes() {
 
               <AccordionItem value="docentes" className="group">
                 <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 1.30 }}
-                  whileDrag={{ scale: 0.9, rotate: 10 }}
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  <AccordionTrigger className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:no-underline hover:bg-green-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-green-100 [&[data-state=open]]:dark:bg-slate-600">
+                  <AccordionTrigger className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all hover:no-underline hover:bg-green-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-green-100 [&[data-state=open]]:dark:bg-slate-600">
                     <UsersRound className="w-5 h-5 text-green-600 dark:text-green-400 group-hover:text-green-700 group-data-[state=open]:text-green-700 dark:group-data-[state=open]:text-green-300" />
                     <span className="font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">
                       Docentes
@@ -132,11 +128,10 @@ export function SidebarRoutes() {
 
               <AccordionItem value="secciones" className="group">
                 <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 1.30 }}
-                  whileDrag={{ scale: 0.9, rotate: 10 }}
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  <AccordionTrigger className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:no-underline hover:bg-purple-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-purple-100 [&[data-state=open]]:dark:bg-slate-600">
+                  <AccordionTrigger className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all hover:no-underline hover:bg-purple-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-purple-100 [&[data-state=open]]:dark:bg-slate-600">
                     <ClipboardEdit className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:text-purple-700 group-data-[state=open]:text-purple-700 dark:group-data-[state=open]:text-purple-300" />
                     <span className="font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">
                       Secciones
@@ -158,11 +153,10 @@ export function SidebarRoutes() {
 
               <AccordionItem value="materias" className="group">
                 <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 1.30 }}
-                  whileDrag={{ scale: 0.9, rotate: 10 }}
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  <AccordionTrigger className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:no-underline hover:bg-green-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-green-100 [&[data-state=open]]:dark:bg-slate-600">
+                  <AccordionTrigger className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all hover:no-underline hover:bg-green-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-green-100 [&[data-state=open]]:dark:bg-slate-600">
                     <BookOpen className="w-5 h-5 text-green-600 dark:text-green-400 group-hover:text-green-700 group-data-[state=open]:text-green-700 dark:group-data-[state=open]:text-green-300" />
                     <span className="font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">
                       Materias
@@ -184,11 +178,10 @@ export function SidebarRoutes() {
 
               <AccordionItem value="ano-escolar" className="group">
                 <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 1.30 }}
-                  whileDrag={{ scale: 0.9, rotate: 10 }}
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  <AccordionTrigger className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:no-underline hover:bg-blue-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-orange-100 [&[data-state=open]]:dark:bg-slate-600">
+                  <AccordionTrigger className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all hover:no-underline hover:bg-blue-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-orange-100 [&[data-state=open]]:dark:bg-slate-600">
                     <Calendar className="w-5 h-5 text-orange-600 dark:text-orange-400 group-hover:text-orange-700 group-data-[state=open]:text-orange-700 dark:group-data-[state=open]:text-orange-300" />
                     <span className="font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">
                       Año Escolar
@@ -210,11 +203,10 @@ export function SidebarRoutes() {
 
               <AccordionItem value="notas" className="group">
                 <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 1.30 }}
-                  whileDrag={{ scale: 0.9, rotate: 10 }}
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  <AccordionTrigger className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:no-underline hover:bg-blue-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-blue-100 [&[data-state=open]]:dark:bg-slate-600">
+                  <AccordionTrigger className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all hover:no-underline hover:bg-blue-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-blue-100 [&[data-state=open]]:dark:bg-slate-600">
                     <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:text-blue-700 group-data-[state=open]:text-blue-700 dark:group-data-[state=open]:text-blue-300" />
                     <span className="font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">
                       Notas

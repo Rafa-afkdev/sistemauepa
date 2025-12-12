@@ -1,4 +1,6 @@
 import { Timestamp } from "firebase/firestore";
+// import { NivelEducativo } from "./secciones.interface";
+ 
 
 export type TipoCedula = 'V' | 'E';
 
@@ -11,15 +13,21 @@ export interface Estudiantes {
    nombres: string,
    apellidos: string,
    sexo: string,
-   estado: string; // Estado del estudiante en el sistema
+   estado: string; // Estado del estudiante en el sistema: 'activo', 'retirado', 'egresado'
    fechaNacimiento: string,
    createdAt?: Timestamp,
-   periodo_escolar_actual?: string;
-   año_actual?: string;
+   
+   // Información académica actual
+   // nivel_educativo_actual?: NivelEducativo; //TODO Grado o Año
+   grado_año_actual?: string; // Grado/Año actual
+   periodo_escolar_actual?: string; // ID del periodo escolar
    seccion_actual?: string; // ID de la sección actual
-   estado_nacimiento: string,
-   municipio: string;
-   parroquia: string;
+   
+   
+   // Control de retiro
    fecha_retiro?: Timestamp; // Fecha de retiro si aplica
    motivo_retiro?: string; // Motivo del retiro
+   
+   // Metadata
+   updatedAt?: Timestamp;
 }

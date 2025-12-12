@@ -22,9 +22,9 @@ import React from "react";
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Estas seguro que deseas eliminar este periodo escolar?</AlertDialogTitle>
+            <AlertDialogTitle>¿Estás seguro de que deseas eliminar este período escolar?</AlertDialogTitle>
             <AlertDialogDescription>
-          Presiona En Confirmar Para Eliminar Este Periodo Escolar. Recuerda que al eliminar este periodo escolar, puede afectar a tus registros a largo plazo
+          Presiona Confirmar para eliminar este período escolar. Recuerda que al eliminar este período escolar, puede afectar tus registros a largo plazo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

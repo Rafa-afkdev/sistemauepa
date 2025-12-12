@@ -12,8 +12,11 @@ import { LayoutList, SquarePen, Trash2 } from "lucide-react";
 import { CreateUpdateStudents } from "./create-update-students.form";
 import { ConfirmDeletion } from "./confirm-deletion";
 import { Skeleton } from "@/components/ui/skeleton";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
+import { InscripcionSeccion, Secciones } from "@/interfaces/secciones.interface";
+import { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
+import { getCollection } from "@/lib/data/firebase";
 
 export function TableStudentView({
   students,
@@ -26,6 +29,66 @@ export function TableStudentView({
   deleteStudent: (student: Estudiantes) => Promise<void>;
   isLoading: boolean;
 }) {
+  const [inscripciones, setInscripciones] = useState<InscripcionSeccion[]>([]);
+  const [seccionesMap, setSeccionesMap] = useState<Record<string, Secciones>>({});
+  const [periodosMap, setPeriodosMap] = useState<Record<string, PeriodosEscolares>>({});
+
+  useEffect(() => {
+    const loadRefs = async () => {
+      try {
+        const [insc, secc, pers] = await Promise.all([
+          getCollection("estudiantes_inscritos"),
+          getCollection("secciones"),
+          getCollection("periodos_escolares"),
+        ]);
+
+        setInscripciones(insc as InscripcionSeccion[]);
+        const seccMap: Record<string, Secciones> = {};
+        (secc as Secciones[]).forEach((s) => {
+          if (s.id) seccMap[s.id] = s;
+        });
+        setSeccionesMap(seccMap);
+
+        const perMap: Record<string, PeriodosEscolares> = {};
+        (pers as PeriodosEscolares[]).forEach((p) => {
+          if (p.id) perMap[p.id] = p;
+        });
+        setPeriodosMap(perMap);
+      } catch (e) {
+        // ignore silently for table fallback
+      }
+    };
+    loadRefs();
+  }, []);
+
+  const currentInscripcionByStudent: Record<string, InscripcionSeccion> = React.useMemo(() => {
+    const byStudent: Record<string, InscripcionSeccion[]> = {};
+    inscripciones.forEach((i) => {
+      if (!i.id_estudiante) return;
+      byStudent[i.id_estudiante] = byStudent[i.id_estudiante] || [];
+      byStudent[i.id_estudiante].push(i);
+    });
+
+    const current: Record<string, InscripcionSeccion> = {};
+    Object.entries(byStudent).forEach(([studentId, list]) => {
+      // Prefer activo, otherwise latest by fecha_inscripcion
+      const activo = list.find((l) => l.estado?.toLowerCase() === "activo");
+      if (activo) {
+        current[studentId] = activo;
+      } else {
+        const latest = list
+          .slice()
+          .sort((a, b) => {
+            const ta = (a.fecha_inscripcion as any)?.seconds || 0;
+            const tb = (b.fecha_inscripcion as any)?.seconds || 0;
+            return tb - ta;
+          })[0];
+        if (latest) current[studentId] = latest;
+      }
+    });
+    return current;
+  }, [inscripciones]);
+
   return (
     <>
       {/* Estilos personalizados para el scroll */}
@@ -73,7 +136,12 @@ export function TableStudentView({
           <TableBody>
             {!isLoading &&
               students &&
-              students.map((student) => (
+              students.map((student) => {
+                const ins = student.id ? currentInscripcionByStudent[student.id] : undefined;
+                const seccion = ins?.id_seccion ? seccionesMap[ins.id_seccion] : undefined;
+                const periodo = ins?.id_periodo_escolar ? periodosMap[ins.id_periodo_escolar] : undefined;
+                const estaInscrito = (ins?.estado || "").toLowerCase() === "activo";
+                return (
                 <TableRow key={student.id}>
                   <TableCell>{student.cedula}</TableCell>
                   <TableCell>
@@ -81,33 +149,33 @@ export function TableStudentView({
                   </TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded ${
-                      student.año_actual && student.seccion_actual 
+                      seccion 
                         ? "bg-blue-100 text-blue-800" 
                         : "bg-red-100 text-red-800"
                     }`}>
-                      {student.año_actual && student.seccion_actual
-                        ? `${student.año_actual} ${student.seccion_actual}`
+                      {seccion
+                        ? `${seccion.grado_año}° ${seccion.nivel_educativo} ${seccion.seccion}`
                         : "NINGUNO"}
                     </span>
                   </TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded ${
-                      student.periodo_escolar_actual 
+                      periodo 
                         ? "bg-blue-100 text-blue-800" 
                         : "bg-red-100 text-red-800"
                     }`}>
-                      {student.periodo_escolar_actual || "NINGUNO"}
+                      {periodo?.periodo || "NINGUNO"}
                     </span>
                   </TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded ${
-                      student.estado === "INSCRITO" 
+                      estaInscrito 
                         ? "bg-green-100 text-green-800" :
-                      student.estado === "RETIRADO" 
+                      !estaInscrito && ins 
                         ? "bg-red-100 text-red-800" :
                       "bg-gray-100 text-gray-800"
                     }`}>
-                      {student.estado || "SIN ASIGNAR"}
+                      {ins ? (estaInscrito ? "INSCRITO" : "RETIRADO") : "SIN ASIGNAR"}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -132,7 +200,8 @@ export function TableStudentView({
                     </ConfirmDeletion>
                   </TableCell>
                 </TableRow>
-              ))}
+              );
+            })}
             {isLoading &&
               [1, 1, 1].map((e, i) => (
                 <TableRow key={i}>

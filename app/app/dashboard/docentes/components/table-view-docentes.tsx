@@ -8,10 +8,13 @@ import {
     TableHeader,
     TableRow,
   } from "@/components/ui/table";
-  import { LayoutList } from "lucide-react";
-  import { Skeleton } from "@/components/ui/skeleton";  
+import { Button } from "@/components/ui/button";
+import { Eye, LayoutList, SquarePen } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";  
 import React from "react";
 import { User } from "@/interfaces/users.interface";
+import { CreateUpdateDocentes } from "./create-update-docentes-form";
+import { ViewDocenteDetails } from "./view-docente-details";
 
   export function TableDocentesView({
     docentes,
@@ -62,6 +65,7 @@ import { User } from "@/interfaces/users.interface";
               <TableHead>Correo</TableHead>
               <TableHead>Contraseña</TableHead>
               <TableHead>Teléfono</TableHead>
+              <TableHead>Opciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -74,12 +78,33 @@ import { User } from "@/interfaces/users.interface";
                   <TableCell>{docente.apellidos}</TableCell>                 
                   <TableCell>{docente.email}</TableCell>  
                   <TableCell>{docente.password}</TableCell>               
-                  <TableCell>{docente.telefono}</TableCell>                 
+                  <TableCell>{docente.telefono}</TableCell>
+                  <TableCell>
+                    <ViewDocenteDetails docente={docente}>
+                      <Button className="p-0.5 mx-1 border-0" variant="outline">
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    </ViewDocenteDetails>
+                    <CreateUpdateDocentes
+                      getDocentes={getDocentes}
+                      docenteToUpdate={docente}
+                    >
+                      <Button className="p-0.5 mx-1 border-0" variant="outline">
+                        <SquarePen className="w-4 h-4" />
+                      </Button>
+                    </CreateUpdateDocentes>
+                  </TableCell>
                 </TableRow>
               ))}
             {isLoading &&
               [1, 1, 1].map((e, i) => (
                 <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="w-full h-4" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="w-full h-4" />
+                  </TableCell>
                   <TableCell>
                     <Skeleton className="w-full h-4" />
                   </TableCell>

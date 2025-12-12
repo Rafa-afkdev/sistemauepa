@@ -22,9 +22,9 @@ import React from "react";
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Estas seguro que deseas eliminar este estudiante?</AlertDialogTitle>
+            <AlertDialogTitle>¿Estás seguro de que deseas eliminar a este estudiante?</AlertDialogTitle>
             <AlertDialogDescription>
-          Presiona En Confirmar Para Eliminar El Estudiante
+          Presiona Confirmar para eliminar al estudiante.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -2,11 +2,14 @@ import { Timestamp } from "firebase/firestore";
 
 export interface Materias {
     id?: string;
-    nombre: string; // Nombre de la materia (Matemática, Lengua, etc.)
+    nombre: string; // Nombre de la materia (Matemática, Lengua, Castellano, etc.)
     codigo?: string; // Código de la materia (opcional)
     descripcion?: string;
-    año: string[]; // Años en los que se imparte esta materia ['1ro', '2do', '3ro']
-    estado: 'activa' | 'inactiva';
+    nivel_educativo: string; // 'primaria' o 'media_general'
+    grados_años: string[]; // Grados/Años en los que se imparte ['1ro', '2do', '3ro']
+    // horas_semanales?: number; // Horas de clase por semana
+    es_obligatoria: boolean; // Si es materia obligatoria o electiva
+    estado: string;
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }
@@ -15,15 +18,24 @@ export interface Materias {
 export interface AsignacionDocenteMateria {
     id?: string;
     docente_id: string; // ID del docente
-    docente_nombre: string; // Nombre del docente para referencia
     materia_id: string; // ID de la materia
-    materia_nombre: string; // Nombre de la materia para referencia
-    seccion_id: string; // ID de la sección
-    año: string; // Año (1ro, 2do, etc.)
-    seccion: string; // Letra de la sección (A, B, etc.)
+    secciones_id: string[]; // ID de la sección
     periodo_escolar_id: string; // ID del periodo escolar
-    estado: 'activa' | 'inactiva';
-    fecha_asignacion: Timestamp;
+    estado: string;
+    fecha_asignacion: string;
+    observaciones?: string;
+    createdAt?: Timestamp;
+    updatedAt?: Timestamp;
+}
+
+export interface AsignacionDocenteGrado {
+    id?: string;
+    docente_id: string; // ID del docente
+    seccion_id: string; // ID de la sección
+    periodo_escolar_id: string; // ID del periodo escolar
+    estado: string;
+    fecha_asignacion: string;
+    observaciones?: string;
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }
@@ -33,13 +45,16 @@ export interface ContenidoMateria {
     id?: string;
     materia_id: string;
     asignacion_id: string; // ID de la asignación docente-materia
-    lapso: 1 | 2 | 3; // Lapso escolar
+    periodo_escolar_id: string;
+    lapso: number; // Lapso escolar
     nombre_contenido: string; // Nombre del contenido o tema
     descripcion?: string;
+    competencias?: string[]; // Competencias a desarrollar
     ponderacion: number; // Peso del contenido en la nota final del lapso (%)
+    tipo_evaluacion?: 'prueba' | 'trabajo' | 'exposicion' | 'proyecto' | 'participacion' | 'otro';
     fecha_evaluacion?: Timestamp;
     orden: number; // Orden del contenido dentro del lapso
-    estado: 'activo' | 'inactivo';
+    estado: string;
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }

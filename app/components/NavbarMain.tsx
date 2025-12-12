@@ -28,9 +28,9 @@ export default function  Navbar() {
       className="w-full bg-transparent border-b border-transparent absolute top-0 left-0 z-50"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-24">
+        <div className="flex items-center h-24 justify-end md:justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center">
+          <Link href="/" className="hidden md:flex items-center">
             <motion.span 
               whileHover={{ scale: 1.02 }}
               className="text-3xl font-heading font-normal text-black tracking-wide"
@@ -86,9 +86,9 @@ export default function  Navbar() {
               className="p-2 rounded-full hover:bg-primary-gold/10 transition-all duration-300"
             >
               {isOpen ? (
-                <X className="w-7 h-7 text-primary-gold" />
+                <X className="w-7 h-7 text-white" />
               ) : (
-                <Menu className="w-7 h-7 text-primary-gold" />
+                <Menu className="w-7 h-7 text-white" />
               )}
             </motion.button>
           </div>
@@ -119,16 +119,16 @@ export default function  Navbar() {
               >
                 {link.label}
               </Link>
-              <Link
-                href="/auth"
-                className="flex items-center gap-2 bg-yellow-400 text-blue-900 px-4 py-2 rounded-full font-medium hover:bg-yellow-300 transition-colors duration-300 mt-4 mx-3 text-center justify-center"
-                onClick={() => setIsOpen(false)}
-              >
-                <LogIn className="w-4 h-4" />
-                Iniciar Sesión
-              </Link>
             </motion.div>
           ))}
+          <Link
+            href="/auth"
+            className="flex items-center gap-2 bg-yellow-400 text-blue-900 px-4 py-2 rounded-full font-medium hover:bg-yellow-300 transition-colors duration-300 mt-4 mx-3 text-center justify-center"
+            onClick={() => setIsOpen(false)}
+          >
+            <LogIn className="w-4 h-4" />
+            Iniciar Sesión
+          </Link>
         </div>
       </motion.div>
     </motion.nav>

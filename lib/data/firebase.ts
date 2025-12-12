@@ -10,32 +10,36 @@ import { getStorage, uploadString, getDownloadURL, ref } from "firebase/storage"
 // Your web app's Firebase configuration
 
 //TODO CONFIGURACION DE PRODUCCION
-const firebaseConfig = {
-  apiKey: "AIzaSyC5zYhmNaffwYTp_kDpz7AMZIQLA_1RV-Q",
-  authDomain: "colegiouepa-93545.firebaseapp.com",
-  projectId: "colegiouepa-93545",
-  storageBucket: "colegiouepa-93545.firebasestorage.app",
-  messagingSenderId: "532750479123",
-  appId: "1:532750479123:web:8972db8ca4fd9ed50eb4e6"
-};
+// const firebaseConfig = {
+//   apiKey: "AIzaSyC5zYhmNaffwYTp_kDpz7AMZIQLA_1RV-Q",
+//   authDomain: "colegiouepa-93545.firebaseapp.com",
+//   projectId: "colegiouepa-93545",
+//   storageBucket: "colegiouepa-93545.firebasestorage.app",
+//   messagingSenderId: "532750479123",
+//   appId: "1:532750479123:web:8972db8ca4fd9ed50eb4e6"
+// };
 
 
 //TODO CONFIGURACION DE DESARROLLO
-// const firebaseConfig = {
-//   apiKey: "AIzaSyBRvMoAIwHRlUjy-t7nikzCmcok9O82vU4",
-//   authDomain: "colegiouepa-a7efa.firebaseapp.com",
-//   projectId: "colegiouepa-a7efa",
-//   storageBucket: "colegiouepa-a7efa.firebasestorage.app",
-//   messagingSenderId: "859629992927",
-//   appId: "1:859629992927:web:aabb827e2e3d9b3839a26a"
-// };
+const firebaseConfig = {
+  apiKey: "AIzaSyBRvMoAIwHRlUjy-t7nikzCmcok9O82vU4",
+  authDomain: "colegiouepa-a7efa.firebaseapp.com",
+  projectId: "colegiouepa-a7efa",
+  storageBucket: "colegiouepa-a7efa.firebasestorage.app",
+  messagingSenderId: "859629992927",
+  appId: "1:859629992927:web:aabb827e2e3d9b3839a26a"
+};
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
+// Instancia secundaria para crear usuarios sin afectar la sesión actual
+const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+
 export default app;
 
 export const auth = getAuth(app);
+export const secondaryAuth = getAuth(secondaryApp);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
@@ -43,8 +47,12 @@ export const storage = getStorage(app);
 //TODO Las FUNCIONES DEL AUTH //
 
 //?CREAR NUEVO USUARIO///
+// Usa la instancia secundaria para no cerrar la sesión del administrador
 export const createUser = async(user: {email: string, password:string}) => {
-    return await createUserWithEmailAndPassword(auth, user.email, user.password)
+    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, user.email, user.password);
+    // Cerrar sesión en la instancia secundaria para que no interfiera
+    await secondaryAuth.signOut();
+    return userCredential;
 }
 
 //??ENTRAR CON EMAIL & CONTRASEÑA//

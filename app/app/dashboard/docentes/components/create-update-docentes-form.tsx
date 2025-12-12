@@ -58,7 +58,7 @@ export function CreateUpdateDocentes({
     cedula: z.string()
       .min(1, "La cédula es requerida")
       .regex(/^\d+$/, "La cédula debe contener solo números")
-      .refine((val) => Number(val) >= 10000000, "La cédula debe tener al menos 8 dígitos"),
+      .refine((val) => Number(val) >= 1000000, "La cédula debe tener al menos 7 dígitos"),
     name: z.string().min(3, "El nombre es requerido"),
     apellidos: z.string().min(3, "Los apellidos son requeridos"),
     email: z.string().email("Email inválido"),
@@ -376,6 +376,7 @@ export function CreateUpdateDocentes({
                     id="email"
                     type="email"
                     placeholder="ejemplo@correo.com"
+                    disabled={!!docenteToUpdate}
                   />
                   {errors.email && (
                     <p className="text-red-500 text-xs mt-1">

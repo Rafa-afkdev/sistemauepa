@@ -3,19 +3,19 @@ import { CalendarClock, CalendarPlus,  ClipboardEdit, FileEdit, FilePlus, FileTe
 export const DataEstudiantesSidebar = [
     {
         icon: UserRoundPlusIcon,
-        label: "Registrar",
+        label: "Mis Estudiantes",
         href:"/app/dashboard/estudiantes", 
     },
     {
         icon: UserRoundPenIcon,
-        label: "Inscribir",
-        href:"/dashboard/inscripcion-students", 
+        label: "Estudiantes Inscritos",
+        href:"/app/dashboard/estudiantes/inscribir", 
     },
 
     {
         icon: UserX2Icon,
-        label: "Retirar",
-        href:"/dashboard/retirar-students", 
+        label: "Retirar Estudiante",
+        href:"/app/dashboard/estudiantes/retirar", 
     },
 
     {
@@ -27,7 +27,7 @@ export const DataEstudiantesSidebar = [
     {
         icon: FileText,
         label: "Generar Constancias",
-        href: "/app/dashboard/constancias", 
+        href: "/app/dashboard/estudiantes/constancias", 
     },
 
 ]
@@ -39,21 +39,27 @@ export const DataDocenteSidebar = [
         href: "/app/dashboard/docentes", 
     },
     {
+        icon: FileText,
+        label: "Asignar Grados",
+        href: "/app/dashboard/docentes/asignacion-grado", 
+    },
+    {
         icon: PenBoxIcon,
         label: "Asignar Materias",
-        href: "/dashboard/asignar-materias", 
+        href: "/app/dashboard/docentes/asignacion-materias", 
     },
+
 ]
 export const DataSeccionesSidebar = [
     {
         icon: ClipboardEdit,
-        label: "Aperturar Sección",
-        href: "/dashboard/create-update-seccion", 
+        label: "Aperturar Secciones",
+        href: "/app/dashboard/secciones", 
     },
     {
         icon: FileText,
         label: "Generar Nómina",
-        href: "/dashboard/nomina-secciones", 
+        href: "/app/dashboard/secciones/nomina", 
     },
 ]
 
@@ -62,7 +68,7 @@ export const DataMateriasSidebar = [
     {
         icon: ClipboardEdit,
         label: "Registrar",
-        href: "/dashboard/materias", 
+        href: "/app/dashboard/materias", 
     },
 ]
 
