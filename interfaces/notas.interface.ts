@@ -1,5 +1,4 @@
 import { Timestamp } from "firebase/firestore";
-import { NivelEducativo, GradoAño } from './secciones.interface';
 
 // Escala de calificación para primaria (literal)
 export type CalificacionPrimaria = 'A' | 'B' | 'C' | 'D' | 'E';
@@ -17,8 +16,8 @@ export interface Notas {
     contenido_id: string; // ID del contenido evaluado
     contenido_nombre: string; // Nombre del contenido para referencia
     seccion_id: string;
-    nivel_educativo: NivelEducativo; // 'primaria' o 'media_general'
-    grado_año: GradoAño;
+    nivel_educativo: string; // 'primaria' o 'media_general'
+    grado_año: string;
     periodo_escolar_id: string;
     lapso: 1 | 2 | 3; // Lapso escolar
     
@@ -50,8 +49,8 @@ export interface ResumenNotasLapso {
     materia_nombre: string;
     asignacion_id: string;
     seccion_id: string;
-    nivel_educativo: NivelEducativo;
-    grado_año: GradoAño;
+    nivel_educativo: string;
+    grado_año: string;
     periodo_escolar_id: string;
     lapso: 1 | 2 | 3;
     notas_contenidos: {
@@ -75,8 +74,8 @@ export interface ResumenNotasAnual {
     id?: string;
     estudiante_id: string;
     estudiante_nombre: string;
-    nivel_educativo: NivelEducativo;
-    grado_año: GradoAño;
+    nivel_educativo: string;
+    grado_año: string;
     periodo_escolar_id: string;
     seccion_id: string;
     materias: {
@@ -114,7 +113,7 @@ export interface AccesoRegistroNotas {
     docente_nombre: string;
     periodo_escolar_id: string;
     puede_registrar_notas: boolean; // Control de estudio puede restringir acceso
-    nivel_educativo?: NivelEducativo; // Restricción por nivel (opcional)
+    nivel_educativo?: string; // Restricción por nivel (opcional)
     fecha_restriccion?: Timestamp;
     fecha_habilitacion?: Timestamp;
     motivo_restriccion?: string;
