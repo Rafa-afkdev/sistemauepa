@@ -116,7 +116,7 @@ export function CreateUpdateStudents({
           estado: studentToUpdate.estado || "",
           fechaNacimiento: studentToUpdate.fechaNacimiento,
           periodo_escolar_actual: studentToUpdate.periodo_escolar_actual || "",
-          año_actual: studentToUpdate.año_actual || "",
+          // año_actual: studentToUpdate.año_actual || "",
           seccion_actual: studentToUpdate.seccion_actual || "",
           estado_nacimiento: studentToUpdate.estado_nacimiento,
           municipio: studentToUpdate.municipio,
@@ -252,9 +252,9 @@ export function CreateUpdateStudents({
         estado: "",
         año_actual:"",
         seccion_actual: "",
-        estado_nacimiento: student.estado_nacimiento.toUpperCase(),
-        municipio: student.municipio.toUpperCase(),
-        parroquia: student.parroquia.toUpperCase(),
+        estado_nacimiento: student.estado_nacimiento?.toUpperCase(),
+        municipio: student.municipio?.toUpperCase(),
+        parroquia: student.parroquia?.toUpperCase(),
       };
   
       await addDocument(path, normalizedStudent);
@@ -295,9 +295,9 @@ export function CreateUpdateStudents({
         estado: "",
         año_actual:"",
         seccion_actual: "",
-        estado_nacimiento: student.estado_nacimiento.toUpperCase(),
-        municipio: student.municipio.toUpperCase(),
-        parroquia: student.parroquia.toUpperCase(),
+        estado_nacimiento: student.estado_nacimiento?.toUpperCase(),
+        municipio: student.municipio?.toUpperCase(),
+        parroquia: student.parroquia?.toUpperCase(),
       };
     
       await updateDocument(path, normalizedStudent);

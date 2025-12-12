@@ -17,9 +17,15 @@ export interface Estudiantes {
    fechaNacimiento: string,
    createdAt?: Timestamp,
    
+   // Lugar de nacimiento
+   estado_nacimiento?: string; // Estado de nacimiento
+   municipio?: string; // Municipio de nacimiento
+   parroquia?: string; // Parroquia de nacimiento
+   
    // Información académica actual
    // nivel_educativo_actual?: NivelEducativo; //TODO Grado o Año
    grado_año_actual?: string; // Grado/Año actual
+   año_actual?: string; // Año actual (alias de grado_año_actual)
    periodo_escolar_actual?: string; // ID del periodo escolar
    seccion_actual?: string; // ID de la sección actual
    
