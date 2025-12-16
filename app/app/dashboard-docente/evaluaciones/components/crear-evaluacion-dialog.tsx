@@ -27,16 +27,18 @@ import { CalendarIcon, Loader2, Plus, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { ContenidoCriterios } from "@/interfaces/evaluaciones.interface";
+import { ContenidoCriterios, Evaluaciones } from "@/interfaces/evaluaciones.interface";
 import { LapsosEscolares } from "@/interfaces/lapsos.interface";
 import { showToast } from "nextjs-toast-notify";
 import { collection, query, where, getDocs, getDoc, doc } from "firebase/firestore";
-import { db, addDocument } from "@/lib/data/firebase";
+import { db, addDocument, updateDocument } from "@/lib/data/firebase";
 import { useUser } from "@/hooks/use-user";
 
 interface CrearEvaluacionDialogProps {
   children: React.ReactNode;
   onEvaluacionCreada: () => void;
+  evaluacionToEdit?: Evaluaciones | null;
+  onOpenChange?: (open: boolean) => void;
 }
 
 interface MateriaDocente {
@@ -55,11 +57,13 @@ interface SeccionDocente {
 export function CrearEvaluacionDialog({
   children,
   onEvaluacionCreada,
+  evaluacionToEdit,
+  onOpenChange,
 }: CrearEvaluacionDialogProps) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useUser();
-  
+
   // Form state
   const [nombreEvaluacion, setNombreEvaluacion] = useState("");
   const [tipoEvaluacion, setTipoEvaluacion] = useState("");
@@ -72,6 +76,47 @@ export function CrearEvaluacionDialog({
   const [criterios, setCriterios] = useState<ContenidoCriterios[]>([
     { nro_criterio: "1", nombre: "", ponderacion: 0 },
   ]);
+
+  const isEditing = !!evaluacionToEdit;
+
+  // Efecto para abrir el modal si hay una evaluación para editar
+  useEffect(() => {
+    if (evaluacionToEdit) {
+      setOpen(true);
+      cargarDatosEvaluacion();
+    }
+  }, [evaluacionToEdit]);
+
+  const cargarDatosEvaluacion = () => {
+    if (!evaluacionToEdit) return;
+
+    setNombreEvaluacion(evaluacionToEdit.nombre_evaluacion || "");
+    setTipoEvaluacion(evaluacionToEdit.tipo_evaluacion || "");
+    setLapsoId(evaluacionToEdit.lapsop_id || "");
+    setMateriaId(evaluacionToEdit.materia_id || "");
+    setSeccionId(evaluacionToEdit.seccion_id || "");
+    setPeriodoEscolarId(evaluacionToEdit.periodo_escolar_id || "");
+
+    // Ajustar fecha (sumar un día para compensar zona horaria si es necesario, o parsear correctamente)
+    // Asumiendo que viene en formato YYYY-MM-DD
+    if (evaluacionToEdit.fecha) {
+      const fechaParts = evaluacionToEdit.fecha.split('-').map(Number);
+      // Crear fecha local usando los componentes (año, mes base 0, día)
+      setFecha(new Date(fechaParts[0], fechaParts[1] - 1, fechaParts[2]));
+    }
+
+    if (evaluacionToEdit.criterios && evaluacionToEdit.criterios.length > 0) {
+      // Verificar si son criterios por defecto o personalizados
+      const esCriterioUnico = evaluacionToEdit.criterios.length === 1 &&
+        evaluacionToEdit.criterios[0].ponderacion === 20;
+
+      setTieneCriterios(!esCriterioUnico);
+      setCriterios(evaluacionToEdit.criterios);
+    } else {
+      setTieneCriterios(false);
+      setCriterios([{ nro_criterio: "1", nombre: "", ponderacion: 0 }]);
+    }
+  };
 
   // Lapsos activos
   const [lapsosActivos, setLapsosActivos] = useState<LapsosEscolares[]>([]);
@@ -107,16 +152,16 @@ export function CrearEvaluacionDialog({
       const lapsosRef = collection(db, "lapsos");
       const q = query(lapsosRef, where("status", "==", "ACTIVO"));
       const querySnapshot = await getDocs(q);
-      
+
       const lapsosData = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data() 
+        ...doc.data()
       })) as LapsosEscolares[];
-      
+
       console.log("Lapsos activos encontrados:", lapsosData);
-      
+
       setLapsosActivos(lapsosData);
-      
+
       // Si hay un lapso activo, seleccionarlo por defecto
       if (lapsosData.length > 0) {
         setLapsoId(lapsosData[0].id || "");
@@ -132,7 +177,7 @@ export function CrearEvaluacionDialog({
 
   const loadMateriasDocente = async () => {
     if (!user?.uid) return;
-    
+
     setLoadingMaterias(true);
     try {
       const asignacionesRef = collection(db, "asignaciones_docente_materia");
@@ -142,13 +187,13 @@ export function CrearEvaluacionDialog({
         where("estado", "==", "activa")
       );
       const querySnapshot = await getDocs(q);
-      
+
       // Usar un Map para obtener materias únicas
       const materiasMap = new Map<string, MateriaDocente>();
-      
+
       for (const docSnap of querySnapshot.docs) {
         const asignacion = docSnap.data();
-        
+
         if (asignacion.materia_id && !materiasMap.has(asignacion.materia_id)) {
           try {
             const materiaDoc = await getDoc(doc(db, "materias", asignacion.materia_id));
@@ -163,7 +208,7 @@ export function CrearEvaluacionDialog({
           }
         }
       }
-      
+
       const materiasArray = Array.from(materiasMap.values());
       console.log("Materias cargadas:", materiasArray);
       setMaterias(materiasArray);
@@ -177,7 +222,7 @@ export function CrearEvaluacionDialog({
 
   const loadSeccionesPorMateria = async (materiaIdSeleccionada: string) => {
     if (!user?.uid) return;
-    
+
     setLoadingSecciones(true);
     try {
       const asignacionesRef = collection(db, "asignaciones_docente_materia");
@@ -188,7 +233,7 @@ export function CrearEvaluacionDialog({
         where("estado", "==", "activa")
       );
       const querySnapshot = await getDocs(q);
-      
+
       // Recopilar todos los IDs de secciones
       const seccionesIds = new Set<string>();
       querySnapshot.docs.forEach(docSnap => {
@@ -197,10 +242,10 @@ export function CrearEvaluacionDialog({
           asignacion.secciones_id.forEach((id: string) => seccionesIds.add(id));
         }
       });
-      
+
       // Obtener detalles de cada sección
       const seccionesDetalles: SeccionDocente[] = [];
-      
+
       for (const seccionId of Array.from(seccionesIds)) {
         try {
           const seccionDoc = await getDoc(doc(db, "secciones", seccionId));
@@ -218,7 +263,7 @@ export function CrearEvaluacionDialog({
           console.error("Error al obtener sección:", error);
         }
       }
-      
+
       console.log("Secciones cargadas para materia:", seccionesDetalles);
       setSecciones(seccionesDetalles);
     } catch (error) {
@@ -231,7 +276,7 @@ export function CrearEvaluacionDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!nombreEvaluacion || !tipoEvaluacion || !materiaId || !seccionId || !fecha) {
       showToast.error("Por favor completa todos los campos requeridos");
       return;
@@ -239,7 +284,7 @@ export function CrearEvaluacionDialog({
 
     // Validar criterios solo si tiene criterios personalizados
     let criteriosFinales = criterios;
-    
+
     if (tieneCriterios) {
       const criteriosValidos = criterios.every(c => c.nombre && c.ponderacion > 0);
       if (!criteriosValidos) {
@@ -260,6 +305,30 @@ export function CrearEvaluacionDialog({
     setIsSubmitting(true);
 
     try {
+      // Validar duplicidad: Consultar si ya existe evaluación para esta sección y fecha
+      const evaluacionesRef = collection(db, "evaluaciones");
+      const qDuplicados = query(
+        evaluacionesRef,
+        where("seccion_id", "==", seccionId),
+        where("fecha", "==", format(fecha, "yyyy-MM-dd"))
+      );
+
+      const duplicadosSnapshot = await getDocs(qDuplicados);
+
+      const existeDuplicado = duplicadosSnapshot.docs.some(docSnap => {
+        // Si estamos editando, ignorar el documento actual
+        if (isEditing && evaluacionToEdit?.id) {
+          return docSnap.id !== evaluacionToEdit.id;
+        }
+        return true;
+      });
+
+      if (existeDuplicado) {
+        showToast.error("Ya existe una evaluación programada para esta sección en esta fecha.");
+        setIsSubmitting(false);
+        return;
+      }
+
       const evaluacionData = {
         id_evaluacion: `EVAL${Date.now()}`,
         nombre_evaluacion: nombreEvaluacion,
@@ -278,12 +347,33 @@ export function CrearEvaluacionDialog({
       };
 
       // Guardar en Firebase
-      await addDocument("evaluaciones", evaluacionData);
-      
-      showToast.success("Evaluación creada exitosamente");
-      setOpen(false);
-      resetForm();
+      if (isEditing && evaluacionToEdit?.id) {
+        // Actualizar
+        const evaluacionActualizada = {
+          ...evaluacionData,
+          id: undefined, // No guardar el id dentro del documento si no es necesario o si ya está en otro lado
+          updatedAt: new Date(),
+          // Mantener campos que no editamos
+          createdAt: evaluacionToEdit.createdAt || new Date(),
+          id_evaluacion: evaluacionToEdit.id_evaluacion,
+          status: evaluacionToEdit.status
+        };
+
+        // Remove undefined fields
+        delete evaluacionActualizada.id;
+
+        await updateDocument(`evaluaciones/${evaluacionToEdit.id}`, evaluacionActualizada);
+        showToast.success("Evaluación actualizada exitosamente");
+      } else {
+        // Crear nueva
+        await addDocument("evaluaciones", evaluacionData);
+        showToast.success("Evaluación creada exitosamente");
+      }
+
       onEvaluacionCreada();
+      setOpen(false);
+      onOpenChange?.(false);
+      resetForm();
     } catch (error) {
       console.error("Error al crear evaluación:", error);
       showToast.error("Error al crear la evaluación");
@@ -297,10 +387,10 @@ export function CrearEvaluacionDialog({
       showToast.error("Máximo 6 criterios permitidos");
       return;
     }
-    setCriterios([...criterios, { 
-      nro_criterio: (criterios.length + 1).toString(), 
-      nombre: "", 
-      ponderacion: 0 
+    setCriterios([...criterios, {
+      nro_criterio: (criterios.length + 1).toString(),
+      nombre: "",
+      ponderacion: 0
     }]);
   };
 
@@ -339,13 +429,21 @@ export function CrearEvaluacionDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(val) => {
+      setOpen(val);
+      onOpenChange?.(val);
+      if (!val) {
+        // Reset form when closing if not submitting? 
+        // Maybe better to wait for reopen or keep state?
+        // Let's keep state for now unless it's a new creation.
+      }
+    }}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Crear Nueva Evaluación</DialogTitle>
+          <DialogTitle>{isEditing ? "Editar Evaluación" : "Crear Nueva Evaluación"}</DialogTitle>
           <DialogDescription>
-            Programa una nueva evaluación para tus estudiantes
+            {isEditing ? "Modifica los datos de la evaluación" : "Programa una nueva evaluación para tus estudiantes"}
           </DialogDescription>
         </DialogHeader>
 
@@ -383,8 +481,8 @@ export function CrearEvaluacionDialog({
               <Label htmlFor="lapsoId">
                 Lapso Escolar <span className="text-red-500">*</span>
               </Label>
-              <Select 
-                value={lapsoId} 
+              <Select
+                value={lapsoId}
                 onValueChange={(value) => {
                   setLapsoId(value);
                   const lapsoSeleccionado = lapsosActivos.find(l => l.id === value);
@@ -396,10 +494,10 @@ export function CrearEvaluacionDialog({
               >
                 <SelectTrigger>
                   <SelectValue placeholder={
-                    loadingLapsos 
-                      ? "Cargando lapsos..." 
-                      : lapsosActivos.length === 0 
-                        ? "No hay lapsos activos" 
+                    loadingLapsos
+                      ? "Cargando lapsos..."
+                      : lapsosActivos.length === 0
+                        ? "No hay lapsos activos"
                         : "Selecciona un lapso"
                   } />
                 </SelectTrigger>
@@ -420,8 +518,8 @@ export function CrearEvaluacionDialog({
               <Label htmlFor="materiaId">
                 Materia <span className="text-red-500">*</span>
               </Label>
-              <Select 
-                value={materiaId} 
+              <Select
+                value={materiaId}
                 onValueChange={(value) => {
                   setMateriaId(value);
                   setSeccionId(""); // Limpiar sección al cambiar materia
@@ -430,10 +528,10 @@ export function CrearEvaluacionDialog({
               >
                 <SelectTrigger>
                   <SelectValue placeholder={
-                    loadingMaterias 
-                      ? "Cargando materias..." 
-                      : materias.length === 0 
-                        ? "No hay materias disponibles" 
+                    loadingMaterias
+                      ? "Cargando materias..."
+                      : materias.length === 0
+                        ? "No hay materias disponibles"
                         : "Selecciona una materia"
                   } />
                 </SelectTrigger>
@@ -451,8 +549,8 @@ export function CrearEvaluacionDialog({
               <Label htmlFor="seccionId">
                 Sección <span className="text-red-500">*</span>
               </Label>
-              <Select 
-                value={seccionId} 
+              <Select
+                value={seccionId}
                 onValueChange={setSeccionId}
                 disabled={!materiaId || loadingSecciones || secciones.length === 0}
               >
@@ -460,10 +558,10 @@ export function CrearEvaluacionDialog({
                   <SelectValue placeholder={
                     !materiaId
                       ? "Primero selecciona una materia"
-                      : loadingSecciones 
-                        ? "Cargando secciones..." 
-                        : secciones.length === 0 
-                          ? "No hay secciones disponibles" 
+                      : loadingSecciones
+                        ? "Cargando secciones..."
+                        : secciones.length === 0
+                          ? "No hay secciones disponibles"
                           : "Selecciona una sección"
                   } />
                 </SelectTrigger>
@@ -535,8 +633,8 @@ export function CrearEvaluacionDialog({
           {/* Criterios de Evaluación */}
           <div className="space-y-3">
             <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="tieneCriterios" 
+              <Checkbox
+                id="tieneCriterios"
                 checked={tieneCriterios}
                 onCheckedChange={(checked) => setTieneCriterios(checked as boolean)}
               />
@@ -545,7 +643,7 @@ export function CrearEvaluacionDialog({
               </Label>
             </div>
             <p className="text-xs text-muted-foreground">
-              {tieneCriterios 
+              {tieneCriterios
                 ? "Define hasta 6 criterios que sumen 20 puntos en total."
                 : "La evaluación tendrá un único criterio general de 20 puntos."}
             </p>
@@ -628,7 +726,10 @@ export function CrearEvaluacionDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false);
+                onOpenChange?.(false);
+              }}
               disabled={isSubmitting}
             >
               Cancelar
@@ -638,9 +739,10 @@ export function CrearEvaluacionDialog({
               className="bg-blue-900 hover:bg-blue-700"
               disabled={isSubmitting}
             >
-              <Plus/>
+              <Plus />
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? "Creando..." : "Crear Evaluación"}
+
+              {isSubmitting ? (isEditing ? "Actualizando..." : "Creando...") : (isEditing ? "Guardar Cambios" : "Crear Evaluación")}
             </Button>
           </DialogFooter>
         </form>
