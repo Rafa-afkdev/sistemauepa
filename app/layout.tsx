@@ -1,8 +1,8 @@
-  import React from "react";
   import type { Metadata } from "next";
-  import { Geist, Geist_Mono } from "next/font/google";
-  import "./globals.css";
-  import LayoutClient from "./components/LayoutClient";
+import { Geist, Geist_Mono } from "next/font/google";
+import React from "react";
+import LayoutClient from "./components/LayoutClient";
+import "./globals.css";
 
   const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -15,7 +15,11 @@
   });
 
   export const metadata: Metadata = {
-    title: "U.E.P Adventista Alejandro Oropeza Castillo",
+    metadataBase: new URL('https://uepaaoc.com'),
+    title: {
+      default: "U.E.P Adventista Alejandro Oropeza Castillo",
+      template: "%s | U.E.P Adventista Alejandro Oropeza Castillo"
+    },
     description:
       "Unidad Educativa Adventista Alejandro Oropeza Castillo en Guarenas, Estado Miranda. Más de 40 años formando estudiantes con excelencia académica y valores cristianos. Educación integral: Mano, Mente y Corazón.",
     keywords: [
@@ -28,28 +32,63 @@
       "educación integral",
       "valores cristianos",
       "colegio privado",
+      "escuela adventista",
+      "educación primaria",
+      "educación secundaria",
     ],
     authors: [{ name: "U.E.P Adventista Alejandro Oropeza Castillo" }],
+    creator: "U.E.P Adventista Alejandro Oropeza Castillo",
+    publisher: "U.E.P Adventista Alejandro Oropeza Castillo",
+    formatDetection: {
+      email: false,
+      address: false,
+      telephone: false,
+    },
     openGraph: {
       type: "website",
+      locale: "es_VE",
+      url: "https://uepaaoc.com",
+      siteName: "U.E.P Adventista Alejandro Oropeza Castillo",
       title: "U.E.P Adventista Alejandro Oropeza Castillo",
       description:
         "Formando estudiantes con valores cristianos y excelencia académica en Guarenas, Estado Miranda.",
-      images: ["/og-image.jpg"],
-      locale: "es_VE",
+      images: [
+        {
+          url: "/LOGO-COLEGIO.png",
+          width: 1200,
+          height: 630,
+          alt: "Logo U.E.P Adventista Alejandro Oropeza Castillo",
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",
       title: "U.E.P Adventista Alejandro Oropeza Castillo",
       description:
         "Formando estudiantes con valores cristianos y excelencia académica en Guarenas, Estado Miranda.",
-      images: ["/og-image.jpg"],
+      images: ["/LOGO-COLEGIO.png"],
     },
     icons: {
       icon: "/favicon.ico",
       apple: "/apple-touch-icon.png",
     },
     themeColor: "#1e3a8a",
+    viewport: {
+      width: "device-width",
+      initialScale: 1,
+      maximumScale: 5,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
+    },
   };
 
   export default function RootLayout({
@@ -59,6 +98,34 @@
   }>) {
     return (
       <html lang="es" suppressHydrationWarning>
+        <head>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify({
+                '@context': 'https://schema.org',
+                '@type': 'EducationalOrganization',
+                name: 'U.E.P Adventista Alejandro Oropeza Castillo',
+                description: 'Unidad Educativa Adventista Alejandro Oropeza Castillo en Guarenas, Estado Miranda. Formando estudiantes con valores cristianos y excelencia académica.',
+                url: 'https://uepaaoc.com',
+                logo: 'https://uepaaoc.com/LOGO-COLEGIO.png',
+                image: 'https://uepaaoc.com/LOGO-COLEGIO.png',
+                address: {
+                  '@type': 'PostalAddress',
+                  addressLocality: 'Guarenas',
+                  addressRegion: 'Miranda',
+                  addressCountry: 'VE',
+                },
+                contactPoint: {
+                  '@type': 'ContactPoint',
+                  contactType: 'Admissions',
+                  email: 'uep.adventista.aoc@gmail.com',
+                  availableLanguage: 'Spanish',
+                },
+              }),
+            }}
+          />
+        </head>
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
           <LayoutClient>{children}</LayoutClient>
         </body>
