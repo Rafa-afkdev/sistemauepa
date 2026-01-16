@@ -42,7 +42,7 @@ export async function sendEmail(prevState: ContactState, formData: FormData): Pr
   try {
     const data = await resend.emails.send({
       from: 'U.E.P Alejandro Oropeza <noreply@uepaaoc.com>', // Update this with your verified domain if available
-      to: ['sirfucho@gmail.com'],
+      to: ['uep.adventista.aoc@gmail.com'],
       subject: `Nuevo mensaje de ${name}: ${subject}`,
       replyTo: email,
       text: `Nombre: ${name}\nEmail: ${email}\nAsunto: ${subject}\n\nMensaje:\n${message}`,

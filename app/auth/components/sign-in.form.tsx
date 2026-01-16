@@ -1,17 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
   "uses client";
-  import React from "react"; // <-- Agrega esto
   import { Button } from "@/components/ui/button";
-  import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-  import { Input } from "@/components/ui/input";
-  import { Label } from "@/components/ui/label";
-  import * as z from "zod";
-  import {useForm} from "react-hook-form";
-  import { zodResolver } from "@hookform/resolvers/zod";
-  import { useState } from "react";
-  import { LoaderCircle } from "lucide-react"
-import { showToast } from "nextjs-toast-notify";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { signIn } from "@/lib/data/firebase";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { LoaderCircle } from "lucide-react";
+import { showToast } from "nextjs-toast-notify";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 
   const SignInForm = () => {
     
@@ -48,7 +47,7 @@ import { signIn } from "@/lib/data/firebase";
             console.log(res);
               
           } catch (error:any) {
-              showToast.error(error.message, {})
+              showToast.error("Correo o contraseña incorrectos", {})
               
           }finally{
               setisLoading(false);
