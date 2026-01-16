@@ -67,8 +67,8 @@ export function CreateUpdateSecciones({
   const [seccionesExistentes, setSeccionesExistentes] = useState<Secciones[]>([]);
   const [openCombobox, setOpenCombobox] = useState(false);
   const [activePeriodos, setActivePeriodos] = useState<{
-    active: { id: string; [key: string]: any }[];
-    inactive: { id: string; [key: string]: any }[];
+    active: { id: string;[key: string]: any }[];
+    inactive: { id: string;[key: string]: any }[];
   }>({
     active: [],
     inactive: [],
@@ -166,31 +166,31 @@ export function CreateUpdateSecciones({
     resolver: zodResolver(formSchema),
     defaultValues: seccionToUpdate
       ? {
-          nivel_educativo: seccionToUpdate.nivel_educativo,
-          grado_año: seccionToUpdate.grado_año,
-          seccion: seccionToUpdate.seccion,
-          id_periodo_escolar: seccionToUpdate.id_periodo_escolar,
-          docente_guia_id: seccionToUpdate.docente_guia_id || undefined,
-          limite_estudiantes: seccionToUpdate.limite_estudiantes,
-          estudiantes_inscritos: seccionToUpdate.estudiantes_inscritos,
-          estado: seccionToUpdate.estado,
-          turno: seccionToUpdate.turno || undefined,
-          aula: seccionToUpdate.aula || undefined,
-          estudiantes_ids: seccionToUpdate.estudiantes_ids || [],
-        }
+        nivel_educativo: seccionToUpdate.nivel_educativo,
+        grado_año: seccionToUpdate.grado_año,
+        seccion: seccionToUpdate.seccion,
+        id_periodo_escolar: seccionToUpdate.id_periodo_escolar,
+        docente_guia_id: seccionToUpdate.docente_guia_id || undefined,
+        limite_estudiantes: seccionToUpdate.limite_estudiantes,
+        estudiantes_inscritos: seccionToUpdate.estudiantes_inscritos,
+        estado: seccionToUpdate.estado,
+        turno: seccionToUpdate.turno || undefined,
+        aula: seccionToUpdate.aula || undefined,
+        estudiantes_ids: seccionToUpdate.estudiantes_ids || [],
+      }
       : {
-          nivel_educativo: "Grado",
-          grado_año: "",
-          seccion: "",
-          id_periodo_escolar: "",
-          docente_guia_id: undefined,
-          limite_estudiantes: 0,
-          estudiantes_inscritos: 0,
-          estado: "activa",
-          turno: undefined,
-          aula: undefined,
-          estudiantes_ids: [],
-        },
+        nivel_educativo: "Grado",
+        grado_año: "",
+        seccion: "",
+        id_periodo_escolar: "",
+        docente_guia_id: undefined,
+        limite_estudiantes: 0,
+        estudiantes_inscritos: 0,
+        estado: "activa",
+        turno: undefined,
+        aula: undefined,
+        estudiantes_ids: [],
+      },
   });
 
   const { register, handleSubmit, formState, watch } = form;
@@ -617,13 +617,13 @@ export function CreateUpdateSecciones({
                       >
                         {form.watch("docente_guia_id")
                           ? (() => {
-                              const selectedDocente = docentes.find(
-                                (d) => d.id === form.watch("docente_guia_id")
-                              );
-                              return selectedDocente
-                                ? `${selectedDocente.name} ${selectedDocente.apellidos}`
-                                : "Selecciona un docente (Obligatorio)";
-                            })()
+                            const selectedDocente = docentes.find(
+                              (d) => d.id === form.watch("docente_guia_id")
+                            );
+                            return selectedDocente
+                              ? `${selectedDocente.name} ${selectedDocente.apellidos}`
+                              : "Selecciona un docente (Obligatorio)";
+                          })()
                           : "Selecciona un docente (Obligatorio)"}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
@@ -634,6 +634,27 @@ export function CreateUpdateSecciones({
                         <CommandList>
                           <CommandEmpty>No se encontró ningún docente.</CommandEmpty>
                           <CommandGroup>
+                            {/* Opción para quitar docente tutor */}
+                            {form.watch("docente_guia_id") && (
+                              <CommandItem
+                                value="sin-docente-tutor"
+                                onSelect={() => {
+                                  form.setValue("docente_guia_id", undefined, {
+                                    shouldValidate: true,
+                                  });
+                                  setOpenCombobox(false);
+                                }}
+                                className="text-red-600 border-b mb-2"
+                              >
+                                <Check className="mr-2 h-4 w-4 opacity-0" />
+                                <div className="flex flex-col">
+                                  <span className="font-medium">✕ Quitar docente tutor</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    Esta sección quedará sin docente guía asignado
+                                  </span>
+                                </div>
+                              </CommandItem>
+                            )}
                             {!nivelEducativoActual || !periodoEscolarActual ? (
                               <div className="p-2 text-sm text-muted-foreground text-center">
                                 Seleccione nivel educativo y período escolar primero

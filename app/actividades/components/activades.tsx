@@ -301,7 +301,7 @@ export default function ActivadesComponents() {
               Únete a nosotros y experimenta una educación integral que fortalece el cuerpo, desarrolla la mente y nutre el espíritu.
             </p>
             <a
-              href="/contact"
+              href="/contactanos"
               className="inline-flex items-center justify-center bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold text-lg px-10 py-4 rounded-full transition-all duration-300 shadow-2xl hover:shadow-yellow-400/50 transform hover:-translate-y-1"
             >
               Contáctanos

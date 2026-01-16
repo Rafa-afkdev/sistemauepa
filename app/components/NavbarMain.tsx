@@ -12,7 +12,7 @@ const navLinks = [
   { href: '/about', label: 'Nosotros' },
   { href: '/personal', label: 'Personal' },
   { href: '/actividades', label: 'Actividades' },
-  { href: '/contact', label: 'Contáctanos' },
+  { href: '/contactanos', label: 'Contáctanos' },
 ];
 
 export default function  Navbar() {
@@ -30,7 +30,7 @@ export default function  Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center h-24 justify-end md:justify-between">
           {/* Logo */}
-          <Link href="/" className="hidden md:flex items-center">
+          <Link href="/" className="hidden md:flex items-center"> 
             <motion.span 
               whileHover={{ scale: 1.02 }}
               className="text-3xl font-heading font-normal text-black tracking-wide"

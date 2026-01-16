@@ -1,13 +1,16 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useUser } from "@/hooks/use-user";
 import { BookOpen, Users, Calendar, ClipboardList } from "lucide-react";
 
 export default function DashboardDocentePage() {
+  const { user } = useUser();
+
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Bienvenido, Docente</h1>
+        <h1 className="text-3xl font-bold">Bienvenido, {user?.name || "Docente"}</h1>
         <p className="text-muted-foreground mt-2">
           Gestiona tus materias, secciones y evaluaciones desde aquí.
         </p>

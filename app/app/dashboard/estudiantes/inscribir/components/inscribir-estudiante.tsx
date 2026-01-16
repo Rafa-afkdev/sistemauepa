@@ -52,6 +52,7 @@ export function InscribirEstudiante({
   const [estudiantesInscritosIds, setEstudiantesInscritosIds] = useState<string[]>([]);
   const [loadingInscritos, setLoadingInscritos] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [estudiantesConInscripcionActiva, setEstudiantesConInscripcionActiva] = useState<Map<string, { seccion: string; nivel: string }>>(new Map());
 
   // Obtener estudiantes activos
   useEffect(() => {
@@ -86,6 +87,62 @@ export function InscribirEstudiante({
       fetchSecciones();
     }
   }, [open]);
+
+  // Cargar todos los estudiantes con inscripción activa en el período escolar actual
+  useEffect(() => {
+    const fetchInscripcionesActivasPeriodo = async () => {
+      if (!open || secciones.length === 0) {
+        setEstudiantesConInscripcionActiva(new Map());
+        return;
+      }
+
+      try {
+        setLoadingInscritos(true);
+
+        // Obtener el id_periodo_escolar de las secciones activas (todas deberían tener el mismo)
+        const periodosEscolaresIds = [...new Set(secciones.map(s => s.id_periodo_escolar))];
+
+        // Obtener todas las inscripciones activas de estos períodos
+        const todasInscripcionesActivas: InscripcionSeccion[] = [];
+
+        for (const periodoId of periodosEscolaresIds) {
+          const inscripciones = (await getCollection("estudiantes_inscritos", [
+            where("id_periodo_escolar", "==", periodoId),
+            where("estado", "==", "activo"),
+          ])) as InscripcionSeccion[];
+          todasInscripcionesActivas.push(...inscripciones);
+        }
+
+        // Crear mapa de estudiantes con inscripción activa
+        const mapaInscripciones = new Map<string, { seccion: string; nivel: string }>();
+
+        for (const inscripcion of todasInscripcionesActivas) {
+          const seccionInfo = secciones.find(s => s.id === inscripcion.id_seccion);
+          if (seccionInfo) {
+            mapaInscripciones.set(inscripcion.id_estudiante, {
+              seccion: `${seccionInfo.grado_año}° ${seccionInfo.nivel_educativo} - ${seccionInfo.seccion}`,
+              nivel: seccionInfo.nivel_educativo
+            });
+          } else {
+            // Si la sección no está en las activas, obtener info básica
+            mapaInscripciones.set(inscripcion.id_estudiante, {
+              seccion: inscripcion.nivel_educativo,
+              nivel: inscripcion.nivel_educativo
+            });
+          }
+        }
+
+        setEstudiantesConInscripcionActiva(mapaInscripciones);
+      } catch (error) {
+        console.error("Error al cargar inscripciones activas:", error);
+        setEstudiantesConInscripcionActiva(new Map());
+      } finally {
+        setLoadingInscritos(false);
+      }
+    };
+
+    fetchInscripcionesActivasPeriodo();
+  }, [open, secciones]);
 
   // Cargar IDs de estudiantes ya inscritos en la sección seleccionada
   useEffect(() => {
@@ -138,11 +195,17 @@ export function InscribirEstudiante({
       estudiante.nombres.toLowerCase().includes(searchTerm.toLowerCase()) ||
       estudiante.apellidos.toLowerCase().includes(searchTerm.toLowerCase()) ||
       estudiante.cedula.toString().includes(searchTerm);
-    const notAlreadyEnrolled = !selectedSeccion
-      ? true
-      : !estudiantesInscritosIds.includes(estudiante.id!);
-    return matchesSearch && notAlreadyEnrolled;
+
+    // Verificar si el estudiante ya tiene inscripción activa en el período escolar actual
+    const noTieneInscripcionActiva = !estudiantesConInscripcionActiva.has(estudiante.id!);
+
+    return matchesSearch && noTieneInscripcionActiva;
   });
+
+  // Obtener información de inscripción activa para mostrar al usuario
+  const getInfoInscripcionActiva = (estudianteId: string) => {
+    return estudiantesConInscripcionActiva.get(estudianteId);
+  };
 
   const onSubmit = async () => {
     if (selectedEstudiantes.length === 0) {
@@ -191,9 +254,33 @@ export function InscribirEstudiante({
         (seccion.estudiantes_inscritos || 0) + selectedEstudiantes.length;
       if (nuevosInscritos > seccion.limite_estudiantes) {
         showToast.error(
-          `La sección no tiene capacidad suficiente. Disponibles: ${
-            seccion.limite_estudiantes - (seccion.estudiantes_inscritos || 0)
+          `La sección no tiene capacidad suficiente. Disponibles: ${seccion.limite_estudiantes - (seccion.estudiantes_inscritos || 0)
           }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // VALIDACIÓN CRÍTICA: Verificar que ningún estudiante ya tiene inscripción activa en el período escolar
+      const inscripcionesActivasPeriodo = (await getCollection("estudiantes_inscritos", [
+        where("id_periodo_escolar", "==", seccion.id_periodo_escolar),
+        where("estado", "==", "activo"),
+      ])) as InscripcionSeccion[];
+
+      const estudiantesYaInscritosPeriodo = inscripcionesActivasPeriodo
+        .filter(insc => selectedEstudiantes.includes(insc.id_estudiante))
+        .map(insc => insc.id_estudiante);
+
+      if (estudiantesYaInscritosPeriodo.length > 0) {
+        // Obtener nombres de los estudiantes que ya están inscritos
+        const nombresYaInscritos = estudiantes
+          .filter(e => estudiantesYaInscritosPeriodo.includes(e.id!))
+          .map(e => `${e.nombres} ${e.apellidos}`)
+          .join(", ");
+
+        showToast.error(
+          `Los siguientes estudiantes ya tienen inscripción activa en este período escolar: ${nombresYaInscritos}`,
+          { duration: 5000 }
         );
         setIsLoading(false);
         return;
