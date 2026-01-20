@@ -21,7 +21,7 @@ export const DataEstudiantesSidebar = [
     {
         icon: LucideArrowLeftRight,
         label: "Cambio De Sección",
-        href:"/dashboard/cambio-seccion", 
+        href:"/app/dashboard/cambio-seccion", 
     },
     
     {

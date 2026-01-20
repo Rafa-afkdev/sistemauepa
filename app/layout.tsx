@@ -106,10 +106,21 @@ import "./globals.css";
                 '@context': 'https://schema.org',
                 '@type': 'EducationalOrganization',
                 name: 'U.E.P Adventista Alejandro Oropeza Castillo',
+                alternateName: 'UEPA Alejandro Oropeza Castillo',
                 description: 'Unidad Educativa Adventista Alejandro Oropeza Castillo en Guarenas, Estado Miranda. Formando estudiantes con valores cristianos y excelencia académica.',
                 url: 'https://uepaaoc.com',
-                logo: 'https://uepaaoc.com/LOGO-COLEGIO.png',
-                image: 'https://uepaaoc.com/LOGO-COLEGIO.png',
+                logo: {
+                  '@type': 'ImageObject',
+                  url: 'https://uepaaoc.com/LOGO-COLEGIO.png',
+                  width: 500,
+                  height: 500,
+                },
+                image: {
+                  '@type': 'ImageObject',
+                  url: 'https://uepaaoc.com/LOGO-COLEGIO.png',
+                  width: 1200,
+                  height: 630,
+                },
                 address: {
                   '@type': 'PostalAddress',
                   addressLocality: 'Guarenas',
@@ -122,6 +133,9 @@ import "./globals.css";
                   email: 'uep.adventista.aoc@gmail.com',
                   availableLanguage: 'Spanish',
                 },
+                sameAs: [
+                  'https://uepaaoc.com',
+                ],
               }),
             }}
           />

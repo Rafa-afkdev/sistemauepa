@@ -1,9 +1,8 @@
-import React from 'react';
-import { Menu } from 'lucide-react';
-import { SidebarRoutes } from '../SidebarRoutes/SidebarRoutes';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ProfileDropdown } from '@/components/profile-dropdown';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Menu } from 'lucide-react';
 import { Logo } from '../Logo/Logo';
+import { SidebarRoutes } from '../SidebarRoutes/SidebarRoutes';
 
 export function NavBar() {
   return (
@@ -17,6 +16,7 @@ export function NavBar() {
             </button>
           </SheetTrigger>
           <SheetContent side="left" className="w-[280px] sm:w-[300px] p-0 overflow-y-auto">
+            <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
             <div className="h-full flex flex-col">
               <div className="shrink-0">
                 <Logo />

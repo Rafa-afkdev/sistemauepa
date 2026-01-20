@@ -2,56 +2,55 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import React, { useEffect, useMemo, useState } from "react";
 import { useUser } from "@/hooks/use-user";
-import { getCollection, addDocument, updateDocument } from "@/lib/data/firebase";
-import { User } from "@/interfaces/users.interface";
-import { Materias, AsignacionDocenteMateria } from "@/interfaces/materias.interface";
-import { Secciones } from "@/interfaces/secciones.interface";
+import { AsignacionDocenteMateria, Materias } from "@/interfaces/materias.interface";
 import { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
-import { where, orderBy } from "firebase/firestore";
+import { Secciones } from "@/interfaces/secciones.interface";
+import { User } from "@/interfaces/users.interface";
+import { addDocument, deleteDocument, getCollection, updateDocument } from "@/lib/data/firebase";
+import { orderBy, where } from "firebase/firestore";
 import { showToast } from "nextjs-toast-notify";
+import React, { useEffect, useMemo, useState } from "react";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle
+} from "@/components/ui/card";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { LayoutList, Search, NotebookPen, Loader2, SquarePen, X, BookOpen } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BookOpen, History as HistoryIcon, LayoutList, Loader2, NotebookPen, Search, SquarePen, Trash2, X } from "lucide-react";
+import { HistorialAsignacion } from "@/interfaces/historial-asignaciones.interface";
 
 interface AsignarMateriaDialogProps {
   docente: User;
@@ -561,6 +560,452 @@ const EditarAsignacionDialog: React.FC<EditarAsignacionDialogProps> = ({
   );
 };
 
+interface EliminarAsignacionDialogProps {
+  asignacion: AsignacionDocenteMateria;
+  docente: User;
+  materiasMap: Record<string, Materias>;
+  seccionesMap: Record<string, Secciones>;
+  periodosMap: Record<string, PeriodosEscolares>;
+  onDeleted: () => Promise<void> | void;
+}
+
+const EliminarAsignacionDialog: React.FC<EliminarAsignacionDialogProps> = ({
+  asignacion,
+  docente,
+  materiasMap,
+  seccionesMap,
+  periodosMap,
+  onDeleted,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!asignacion.id) {
+      showToast.error("Asignación inválida");
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deleteDocument(`asignaciones_docente_materia/${asignacion.id}`);
+      
+      showToast.success("Materia eliminada correctamente");
+      await onDeleted();
+      setOpen(false);
+    } catch (error: any) {
+      showToast.error(error?.message || "Error al eliminar la asignación");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const materia = materiasMap[asignacion.materia_id];
+  const periodo = periodosMap[asignacion.periodo_escolar_id];
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-8 w-8 p-0 flex items-center justify-center border-red-300 text-red-500 hover:bg-red-50 hover:text-red-600"
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle className="text-red-600">Eliminar asignación de materia</DialogTitle>
+          <DialogDescription>
+            Esta acción no se puede deshacer. Se eliminará permanentemente la asignación de esta materia.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <Card className="bg-red-50 border-red-200">
+            <CardContent className="pt-6 text-sm space-y-2">
+              <div className="flex justify-between border-b border-red-200 pb-2">
+                <span className="font-semibold text-gray-700">Docente:</span>
+                <span className="font-medium">
+                  {docente.name} {docente.apellidos}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-red-200 pb-2">
+                <span className="font-semibold text-gray-700">Materia:</span>
+                <span className="font-medium">
+                  {materia?.nombre || asignacion.materia_id}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-red-200 pb-2">
+                <span className="font-semibold text-gray-700">
+                  Período escolar:
+                </span>
+                <span className="font-medium">
+                  {periodo?.periodo || asignacion.periodo_escolar_id}
+                </span>
+              </div>
+              <div>
+                <span className="font-semibold text-gray-700 block mb-2">
+                  Secciones:
+                </span>
+                {asignacion.secciones_id && asignacion.secciones_id.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {asignacion.secciones_id.map((id) => {
+                      const seccion = seccionesMap[id];
+                      const label = seccion
+                        ? `${seccion.grado_año}° "${seccion.seccion}" - ${seccion.turno}`
+                        : id;
+                      return (
+                        <span
+                          key={id}
+                          className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-red-300 text-xs font-medium text-red-700"
+                        >
+                          {label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 italic text-xs">
+                    No hay secciones asignadas
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setOpen(false)}
+            disabled={isDeleting}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            type="button" 
+            variant="destructive"
+            onClick={handleDelete} 
+            disabled={isDeleting}
+          >
+            {isDeleting && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            Eliminar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Función auxiliar para registrar en historial
+const registrarEnHistorial = async (
+  asignacion: AsignacionDocenteMateria,
+  accion: 'creada' | 'modificada' | 'eliminada',
+  docenteNombre: string,
+  materiaNombre: string,
+  periodoNombre: string,
+  estadoAnterior?: string,
+  estadoNuevo?: string,
+  cambiosRealizados?: string
+) => {
+  try {
+    const historialEntry: Omit<HistorialAsignacion, 'createdAt'> = {
+      asignacion_id: asignacion.id || '',
+      docente_id: asignacion.docente_id,
+      docente_nombre: docenteNombre,
+      materia_id: asignacion.materia_id,
+      materia_nombre: materiaNombre,
+      secciones_id: asignacion.secciones_id || [],
+      periodo_escolar_id: asignacion.periodo_escolar_id,
+      periodo_nombre: periodoNombre,
+      accion,
+      fecha_accion: new Date() as any, // Firebase maneja la conversión a Timestamp
+      estado_anterior: estadoAnterior,
+      estado_nuevo: estadoNuevo,
+      cambios_realizados: cambiosRealizados,
+      observaciones: asignacion.observaciones,
+      datos_snapshot: asignacion,
+    };
+
+    await addDocument('historial_asignaciones', {
+      ...historialEntry,
+      createdAt: new Date(),
+    });
+  } catch (error) {
+    console.error('Error al registrar en historial:', error);
+    // No lanzamos el error para no interrumpir el flujo principal
+  }
+};
+
+interface HistorialAsignacionesDialogProps {
+  docente: User;
+  materiasMap: Record<string, Materias>;
+  seccionesMap: Record<string, Secciones>;
+  periodosMap: Record<string, PeriodosEscolares>;
+}
+
+const HistorialAsignacionesDialog: React.FC<HistorialAsignacionesDialogProps> = ({
+  docente,
+  materiasMap,
+  seccionesMap,
+  periodosMap,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [historial, setHistorial] = useState<HistorialAsignacion[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [filtroAccion, setFiltroAccion] = useState<string>("todas");
+  const [filtroPeriodo, setFiltroPeriodo] = useState<string>("todos");
+
+  useEffect(() => {
+    if (open && docente.id) {
+      cargarHistorial();
+    }
+  }, [open, docente.id]);
+
+  const cargarHistorial = async () => {
+    setIsLoading(true);
+    try {
+      const res = await getCollection("historial_asignaciones", [
+        where("docente_id", "==", docente.id),
+        orderBy("fecha_accion", "desc"),
+      ]);
+      setHistorial(res as HistorialAsignacion[]);
+    } catch (error) {
+      console.error(error);
+      showToast.error("Error al cargar el historial");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const historialFiltrado = useMemo(() => {
+    return historial.filter((item) => {
+      const cumpleAccion = filtroAccion === "todas" || item.accion === filtroAccion;
+      const cumplePeriodo = filtroPeriodo === "todos" || item.periodo_escolar_id === filtroPeriodo;
+      return cumpleAccion && cumplePeriodo;
+    });
+  }, [historial, filtroAccion, filtroPeriodo]);
+
+  const getAccionColor = (accion: string) => {
+    switch (accion) {
+      case 'creada': return 'text-green-600 bg-green-50 border-green-200';
+      case 'modificada': return 'text-blue-600 bg-blue-50 border-blue-200';
+      case 'eliminada': return 'text-red-600 bg-red-50 border-red-200';
+      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+    }
+  };
+
+  const getAccionIcon = (accion: string) => {
+    switch (accion) {
+      case 'creada': return '✅';
+      case 'modificada': return '✏️';
+      case 'eliminada': return '🗑️';
+      default: return '📝';
+    }
+  };
+
+  const formatearFecha = (fecha: any) => {
+    if (!fecha) return '-';
+    try {
+      // Manejar tanto Timestamp de Firebase como Date
+      const date = fecha.toDate ? fecha.toDate() : new Date(fecha);
+      return date.toLocaleDateString('es-VE', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '-';
+    }
+  };
+
+  const periodos = Object.values(periodosMap);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="gap-2 border-purple-400 text-purple-600 hover:bg-purple-50">
+          <HistoryIcon className="w-4 h-4" />
+          Ver Historial
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <HistoryIcon className="w-5 h-5 text-purple-600" />
+            Historial de Asignaciones
+          </DialogTitle>
+          <DialogDescription>
+            {docente.name} {docente.apellidos} - C.I: {docente.cedula}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {/* Filtros */}
+          <div className="flex gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+            <div className="flex-1">
+              <label className="text-xs font-medium text-gray-700 block mb-1">
+                Tipo de Acción
+              </label>
+              <Select value={filtroAccion} onValueChange={setFiltroAccion}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas las acciones</SelectItem>
+                  <SelectItem value="creada">✅ Creadas</SelectItem>
+                  <SelectItem value="modificada">✏️ Modificadas</SelectItem>
+                  <SelectItem value="eliminada">🗑️ Eliminadas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1">
+              <label className="text-xs font-medium text-gray-700 block mb-1">
+                Período Escolar
+              </label>
+              <Select value={filtroPeriodo} onValueChange={setFiltroPeriodo}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los períodos</SelectItem>
+                  {periodos.map((p) => (
+                    <SelectItem key={p.id} value={p.id as string}>
+                      {p.periodo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Timeline de historial */}
+          <div className="space-y-3">
+            {isLoading && (
+              <div className="text-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-purple-600" />
+                <p className="text-sm text-muted-foreground">Cargando historial...</p>
+              </div>
+            )}
+
+            {!isLoading && historialFiltrado.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                <HistoryIcon className="w-16 h-16 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">No hay registros en el historial</p>
+                <p className="text-sm mt-1">
+                  {filtroAccion !== "todas" || filtroPeriodo !== "todos"
+                    ? "Intenta cambiar los filtros"
+                    : "Las asignaciones aparecerán aquí una vez se realicen"}
+                </p>
+              </div>
+            )}
+
+            {!isLoading && historialFiltrado.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Mostrando {historialFiltrado.length} de {historial.length} registros
+                </p>
+                {historialFiltrado.map((item, index) => (
+                  <Card 
+                    key={item.id || index} 
+                    className={`border-l-4 ${getAccionColor(item.accion)}`}
+                  >
+                    <CardContent className="pt-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">{getAccionIcon(item.accion)}</span>
+                            <div>
+                              <h4 className="font-semibold text-sm capitalize">
+                                Asignación {item.accion}
+                              </h4>
+                              <p className="text-xs text-muted-foreground">
+                                {formatearFecha(item.fecha_accion)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <Separator />
+
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <span className="text-muted-foreground text-xs">Materia:</span>
+                              <p className="font-medium">
+                                {materiasMap[item.materia_id]?.nombre || item.materia_nombre}
+                              </p>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground text-xs">Período:</span>
+                              <p className="font-medium">
+                                {periodosMap[item.periodo_escolar_id]?.periodo || item.periodo_nombre}
+                              </p>
+                            </div>
+                          </div>
+
+                          {item.secciones_id && item.secciones_id.length > 0 && (
+                            <div>
+                              <span className="text-muted-foreground text-xs block mb-1">
+                                Secciones:
+                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                {item.secciones_id.map((secId) => {
+                                  const seccion = seccionesMap[secId];
+                                  return (
+                                    <Badge key={secId} variant="outline" className="text-xs">
+                                      {seccion
+                                        ? `${seccion.grado_año}° "${seccion.seccion}"`
+                                        : secId}
+                                    </Badge>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {item.accion === 'modificada' && (item.estado_anterior || item.estado_nuevo) && (
+                            <div className="bg-blue-50 p-2 rounded text-xs">
+                              <p className="font-medium text-blue-800">Cambios realizados:</p>
+                              <p className="text-blue-600">
+                                {item.estado_anterior} → {item.estado_nuevo}
+                              </p>
+                            </div>
+                          )}
+
+                          {item.observaciones && (
+                            <div className="bg-gray-50 p-2 rounded text-xs">
+                              <span className="font-medium text-gray-700">Observaciones: </span>
+                              <span className="text-gray-600">{item.observaciones}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cerrar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const AsignacionMateriasDocentes: React.FC = () => {
   const { user } = useUser();
 
@@ -913,18 +1358,38 @@ const AsignacionMateriasDocentes: React.FC = () => {
                               : "-"}
                           </TableCell>
                           <TableCell className="text-right">
-                            <EditarAsignacionDialog
-                              asignacion={a}
-                              docente={selectedDocente as User}
-                              materiasMap={materiasMap}
-                              seccionesMap={seccionesMap}
-                              periodosMap={periodosMap}
-                              onUpdated={async () => {
-                                if (selectedDocente?.id) {
-                                  await loadAsignacionesDocente(selectedDocente.id);
-                                }
-                              }}
-                            />
+                            <div className="flex gap-2 justify-end">
+                              <EditarAsignacionDialog
+                                asignacion={a}
+                                docente={selectedDocente as User}
+                                materiasMap={materiasMap}
+                                seccionesMap={seccionesMap}
+                                periodosMap={periodosMap}
+                                onUpdated={async () => {
+                                  if (selectedDocente?.id) {
+                                    await loadAsignacionesDocente(selectedDocente.id);
+                                    // Recargar todas las asignaciones
+                                    const resTodasAsignaciones = await getCollection("asignaciones_docente_materia");
+                                    setTodasLasAsignaciones(resTodasAsignaciones as AsignacionDocenteMateria[]);
+                                  }
+                                }}
+                              />
+                              <EliminarAsignacionDialog
+                                asignacion={a}
+                                docente={selectedDocente as User}
+                                materiasMap={materiasMap}
+                                seccionesMap={seccionesMap}
+                                periodosMap={periodosMap}
+                                onDeleted={async () => {
+                                  if (selectedDocente?.id) {
+                                    await loadAsignacionesDocente(selectedDocente.id);
+                                    // Recargar todas las asignaciones
+                                    const resTodasAsignaciones = await getCollection("asignaciones_docente_materia");
+                                    setTodasLasAsignaciones(resTodasAsignaciones as AsignacionDocenteMateria[]);
+                                  }
+                                }}
+                              />
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
