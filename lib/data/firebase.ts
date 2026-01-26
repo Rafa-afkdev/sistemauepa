@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { createUserWithEmailAndPassword, getAuth, sendPasswordResetEmail, signInWithEmailAndPassword, updateProfile } from "firebase/auth" 
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, getFirestore, query, serverTimestamp, setDoc, updateDoc, increment} from "firebase/firestore"
-import { getStorage, uploadString, getDownloadURL, ref } from "firebase/storage";
+import { createUserWithEmailAndPassword, getAuth, sendPasswordResetEmail, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { addDoc, collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, getFirestore, increment, limit, query, serverTimestamp, setDoc, startAfter, updateDoc } from "firebase/firestore";
+import { getDownloadURL, getStorage, ref, uploadString } from "firebase/storage";
 
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -88,6 +88,42 @@ export const getCollection = async(colectionName: string, queryArray?:any[]) => 
     const q = queryArray ? query(ref, ...queryArray) : query(ref);
     return (await getDocs(q)).docs.map((doc) => ({id: doc.id, ...doc.data()}));
 
+}
+
+//? OBTENER COLECCIÓN CON PAGINACIÓN //
+export const getCollectionPaginated = async(
+    colectionName: string, 
+    pageSize: number,
+    lastDoc?: any,
+    queryArray?: any[]
+) => {
+    const ref = collection(db, colectionName);
+    let constraints = queryArray ? [...queryArray] : [];
+    
+    // Agregar limit
+    constraints.push(limit(pageSize));
+    
+    // Si hay un documento anterior, empezar después de él
+    if (lastDoc) {
+        constraints.push(startAfter(lastDoc));
+    }
+    
+    const q = query(ref, ...constraints);
+    const snapshot = await getDocs(q);
+    
+    return {
+        docs: snapshot.docs.map((doc) => ({id: doc.id, ...doc.data()})),
+        lastVisible: snapshot.docs[snapshot.docs.length - 1] || null,
+        hasMore: snapshot.docs.length === pageSize
+    };
+}
+
+//? OBTENER CONTEO TOTAL DE DOCUMENTOS //
+export const getCollectionCount = async(colectionName: string, queryArray?: any[]) => {
+    const ref = collection(db, colectionName);
+    const q = queryArray ? query(ref, ...queryArray) : query(ref);
+    const snapshot = await getCountFromServer(q);
+    return snapshot.data().count;
 }
 
 //?OBTENER UN DOCUMENTO DE UNA COLECCION//

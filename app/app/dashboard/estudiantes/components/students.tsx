@@ -1,34 +1,43 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
  
 "use client";
-import { deleteDocument, getCollection } from "@/lib/data/firebase";
-import { CreateUpdateStudents } from "./create-update-students.form";
-import { useEffect, useState } from "react";
-import { useUser } from "@/hooks/use-user";
-import { TableStudentView } from "./table-view-student";
 import { Button } from "@/components/ui/button";
-import { Search, UserPlus2 } from "lucide-react";
-import { orderBy } from "firebase/firestore";
+import { useUser } from "@/hooks/use-user";
 import type { Estudiantes } from "@/interfaces/estudiantes.interface";
-import React from "react";
+import { deleteDocument, getCollection, getCollectionCount, getCollectionPaginated } from "@/lib/data/firebase";
+import { orderBy } from "firebase/firestore";
+import { Search, UserPlus2, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { CreateUpdateStudents } from "./create-update-students.form";
+import { TableStudentView } from "./table-view-student";
 
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardFooter,
+    CardHeader,
+    CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input"; // Importamos el componente Input de shadcn/ui
 import { showToast } from "nextjs-toast-notify";
+
+const PAGE_SIZE = 10; // Cantidad de estudiantes por página
 
 const Students = () => {
   const { user } = useUser();
@@ -36,14 +45,156 @@ const Students = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchType, setSearchType] = useState<"cedula" | "nombres">("cedula");
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  
+  // Estados de paginación
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalStudents, setTotalStudents] = useState<number>(0);
+  const [lastDocs, setLastDocs] = useState<Map<number, any>>(new Map());
+  const [hasMore, setHasMore] = useState<boolean>(true);
 
-  const getStudents = async () => {
-    const path = `estudiantes`;
-    const query = [orderBy("cedula", "asc")];
-    setIsLoading(true);
+  const totalPages = Math.ceil(totalStudents / PAGE_SIZE);
+
+  // Obtener el conteo total de estudiantes
+  const getTotalCount = useCallback(async () => {
     try {
-      const res = await getCollection(path, query) as Estudiantes[];
-      setStudents(res);
+      const count = await getCollectionCount("estudiantes");
+      setTotalStudents(count);
+    } catch (error) {
+      console.error("Error obteniendo conteo:", error);
+    }
+  }, []);
+
+  // Obtener estudiantes con paginación
+  const getStudents = useCallback(async (page: number = 1) => {
+    const path = "estudiantes";
+    const queryConstraints = [orderBy("cedula", "asc")];
+    setIsLoading(true);
+    
+    try {
+      const lastDoc = page > 1 ? lastDocs.get(page - 1) : undefined;
+      
+      const result = await getCollectionPaginated(
+        path, 
+        PAGE_SIZE, 
+        lastDoc,
+        queryConstraints
+      );
+      
+      setStudents(result.docs as Estudiantes[]);
+      setHasMore(result.hasMore);
+      
+      if (result.lastVisible) {
+        setLastDocs(prev => new Map(prev).set(page, result.lastVisible));
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [lastDocs]);
+
+  // Búsqueda en Firebase
+  const searchStudents = useCallback(async (query: string, type: "cedula" | "nombres") => {
+    if (!query.trim()) {
+      setIsSearching(false);
+      await refreshStudents();
+      return;
+    }
+
+    setIsLoading(true);
+    setIsSearching(true);
+    
+    try {
+      // Obtener todos los estudiantes para búsqueda
+      // Firebase no soporta búsqueda parcial, así que traemos todos y filtramos
+      const allStudents = await getCollection("estudiantes", [orderBy("cedula", "asc")]) as Estudiantes[];
+      
+      const filtered = allStudents.filter((student) => {
+        if (type === "cedula") {
+          return student.cedula.toString().includes(query);
+        } else {
+          const fullName = `${student.nombres} ${student.apellidos}`.toLowerCase();
+          return fullName.includes(query.toLowerCase());
+        }
+      });
+      
+      setStudents(filtered);
+    } catch (error) {
+      console.error("Error en búsqueda:", error);
+      showToast.error("Error al buscar estudiantes");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Efecto inicial
+  useEffect(() => {
+    if (user) {
+      getTotalCount();
+      getStudents(1);
+    }
+  }, [user]);
+
+  // Efecto de búsqueda con debounce
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery) {
+        searchStudents(searchQuery, searchType);
+      } else if (isSearching) {
+        // Si se borró la búsqueda, volver a cargar con paginación
+        setIsSearching(false);
+        refreshStudents();
+      }
+    }, 300); // Debounce de 300ms
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, searchType]);
+
+  // Navegación de páginas
+  const handlePageChange = async (page: number) => {
+    if (page < 1 || page > totalPages || page === currentPage) return;
+    
+    if (page < currentPage) {
+      setLastDocs(new Map());
+      setCurrentPage(1);
+      await loadPagesToPage(page);
+    } else {
+      setCurrentPage(page);
+      await getStudents(page);
+    }
+  };
+
+  const loadPagesToPage = async (targetPage: number) => {
+    const path = "estudiantes";
+    const queryConstraints = [orderBy("cedula", "asc")];
+    setIsLoading(true);
+    
+    try {
+      let currentLastDoc: any = undefined;
+      const newLastDocs = new Map<number, any>();
+      
+      for (let p = 1; p <= targetPage; p++) {
+        const result = await getCollectionPaginated(
+          path,
+          PAGE_SIZE,
+          currentLastDoc,
+          queryConstraints
+        );
+        
+        if (result.lastVisible) {
+          newLastDocs.set(p, result.lastVisible);
+          currentLastDoc = result.lastVisible;
+        }
+        
+        if (p === targetPage) {
+          setStudents(result.docs as Estudiantes[]);
+          setHasMore(result.hasMore);
+        }
+      }
+      
+      setLastDocs(newLastDocs);
+      setCurrentPage(targetPage);
     } catch (error) {
       console.error(error);
     } finally {
@@ -51,17 +202,20 @@ const Students = () => {
     }
   };
 
-  useEffect(() => {
-    if (user) getStudents();
-  }, [user]);
+  // Recargar lista
+  const refreshStudents = async () => {
+    await getTotalCount();
+    setLastDocs(new Map());
+    setCurrentPage(1);
+    await getStudents(1);
+  };
 
-  const filteredStudents = students.filter((student) => {
-    if (searchType === "cedula") {
-      return student.cedula.toString().includes(searchQuery);
-    } else {
-      return student.nombres.toLowerCase().includes(searchQuery.toLowerCase());
-    }
-  });
+  // Limpiar búsqueda
+  const clearSearch = () => {
+    setSearchQuery("");
+    setIsSearching(false);
+    refreshStudents();
+  };
 
   const deleteStudent = async (student: Estudiantes) => {
     const path = `estudiantes/${student.id}`;
@@ -69,8 +223,11 @@ const Students = () => {
     try {
       await deleteDocument(path);
       showToast.success("El estudiante fue eliminado exitosamente");
-      const newStudents = students.filter((i) => i.id !== student.id);
-      setStudents(newStudents);
+      if (isSearching) {
+        await searchStudents(searchQuery, searchType);
+      } else {
+        await refreshStudents();
+      }
     } catch (error: any) {
       showToast.error(error.message, { duration: 2500 });
     } finally {
@@ -78,12 +235,31 @@ const Students = () => {
     }
   };
 
+  // Generar números de página
+  const getPageNumbers = () => {
+    const pages: number[] = [];
+    const maxVisible = 5;
+    
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+    
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    
+    return pages;
+  };
+
   return (
     <Card>
       <CardHeader>
         <div className="flex justify-between items-center">
         <CardTitle className="text-2xl">Estudiantes</CardTitle>
-        <CreateUpdateStudents getStudents={getStudents}>
+        <CreateUpdateStudents getStudents={refreshStudents}>
             <Button variant="outline">
               Agregar Estudiante
               <UserPlus2 className="ml-2 w-5" />
@@ -108,24 +284,74 @@ const Students = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-800" />
               <Input
                 type="text"
-                placeholder="Buscar..."
+                placeholder={searchType === "cedula" ? "Buscar por cédula..." : "Buscar por nombre..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-10 pr-10"
               />
+              {searchQuery && (
+                <button
+                  onClick={clearSearch}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
+          <p className="text-sm text-muted-foreground mt-2">
+            {isSearching ? (
+              <>Resultados de búsqueda: {students.length} estudiante(s) encontrado(s)</>
+            ) : (
+              <>
+                Mostrando {students.length} de {totalStudents} estudiantes
+                {totalPages > 0 && ` • Página ${currentPage} de ${totalPages}`}
+              </>
+            )}
+          </p>
         </CardDescription>
       </CardHeader>
       <CardContent>
         <TableStudentView
           deleteStudent={deleteStudent}
-          getStudents={getStudents}
-          students={filteredStudents}
+          getStudents={refreshStudents}
+          students={students}
           isLoading={isLoading}
         />
       </CardContent>
-      <CardFooter></CardFooter>
+      <CardFooter className="flex justify-center">
+        {totalPages > 1 && !isSearching && (
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              
+              {getPageNumbers().map((pageNum) => (
+                <PaginationItem key={pageNum}>
+                  <PaginationLink
+                    onClick={() => handlePageChange(pageNum)}
+                    isActive={pageNum === currentPage}
+                    className="cursor-pointer"
+                  >
+                    {pageNum}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              
+              <PaginationItem>
+                <PaginationNext 
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  className={!hasMore || currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
+      </CardFooter>
     </Card>
   );
 };

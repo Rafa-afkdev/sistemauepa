@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -7,15 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import React from "react";
-import { Button } from "@/components/ui/button";
-import { LayoutList, Trash2 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { InscripcionSeccion } from "@/interfaces/secciones.interface";
-import { where } from "firebase/firestore";
 import { getCollection } from "@/lib/data/firebase";
+import { LayoutList } from "lucide-react";
 import { showToast } from "nextjs-toast-notify";
-import { ConfirmDeletionInscripcion } from "./confirm-deletion-inscripcion";
+import React from "react";
 
 export function TableViewInscritos({
   inscripciones,
@@ -29,6 +26,7 @@ export function TableViewInscritos({
   isLoading: boolean;
 }) {
   const [estudiantesMap, setEstudiantesMap] = React.useState<Record<string, string>>({});
+  const [cedulasMap, setCedulasMap] = React.useState<Record<string, string>>({});
   const [seccionesMap, setSeccionesMap] = React.useState<Record<string, string>>({});
   const [periodosMap, setPeriodosMap] = React.useState<Record<string, string>>({});
   const [lookupsLoading, setLookupsLoading] = React.useState<boolean>(true);
@@ -47,10 +45,12 @@ export function TableViewInscritos({
         if (!isMounted) return;
 
         const eMap: Record<string, string> = {};
+        const cMap: Record<string, string> = {};
         estudiantes.forEach((e: any) => {
           eMap[e.id] = e?.nombres && e?.apellidos
             ? `${e.nombres} ${e.apellidos}`
             : (e?.nombres ?? e?.apellidos ?? e.id);
+          cMap[e.id] = e?.cedula?.toString() ?? "-";
         });
 
         const sMap: Record<string, string> = {};
@@ -65,6 +65,7 @@ export function TableViewInscritos({
 
         // Batch updates to minimize renders
         setEstudiantesMap(eMap);
+        setCedulasMap(cMap);
         setSeccionesMap(sMap);
         setPeriodosMap(pMap);
       } catch (e: any) {
@@ -90,11 +91,23 @@ export function TableViewInscritos({
     }
   };
 
+  // Ordenar inscripciones por cédula
+  const inscripcionesOrdenadas = React.useMemo(() => {
+    if (!inscripciones || Object.keys(cedulasMap).length === 0) return inscripciones;
+    
+    return [...inscripciones].sort((a, b) => {
+      const cedulaA = parseInt(cedulasMap[a.id_estudiante] || "0", 10);
+      const cedulaB = parseInt(cedulasMap[b.id_estudiante] || "0", 10);
+      return cedulaA - cedulaB;
+    });
+  }, [inscripciones, cedulasMap]);
+
   return (
     <>
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Cédula</TableHead>
             <TableHead>Estudiante</TableHead>
             <TableHead>Sección</TableHead>
             <TableHead>Nivel</TableHead>
@@ -106,9 +119,12 @@ export function TableViewInscritos({
         </TableHeader>
         <TableBody>
           {!isLoading && !lookupsLoading &&
-            inscripciones &&
-            inscripciones.map((inscripcion) => (
+            inscripcionesOrdenadas &&
+            inscripcionesOrdenadas.map((inscripcion) => (
               <TableRow key={inscripcion.id}>
+                <TableCell>
+                  {cedulasMap[inscripcion.id_estudiante] || "-"}
+                </TableCell>
                 <TableCell>
                   {estudiantesMap[inscripcion.id_estudiante] || inscripcion.id_estudiante}
                 </TableCell>

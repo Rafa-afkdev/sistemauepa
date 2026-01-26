@@ -15,42 +15,42 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, History as HistoryIcon, LayoutList, Loader2, NotebookPen, Search, SquarePen, Trash2, X } from "lucide-react";
 import { HistorialAsignacion } from "@/interfaces/historial-asignaciones.interface";
+import { BookOpen, History as HistoryIcon, LayoutList, Loader2, NotebookPen, Search, SquarePen, Trash2, X } from "lucide-react";
 
 interface AsignarMateriaDialogProps {
   docente: User;
@@ -1354,7 +1354,10 @@ const AsignacionMateriasDocentes: React.FC = () => {
                           </TableCell>
                           <TableCell className="text-xs">
                             {a.fecha_asignacion
-                              ? a.fecha_asignacion.split("T")[0]
+                              ? (() => {
+                                  const [year, month, day] = a.fecha_asignacion.split("T")[0].split("-");
+                                  return `${day}/${month}/${year}`;
+                                })()
                               : "-"}
                           </TableCell>
                           <TableCell className="text-right">

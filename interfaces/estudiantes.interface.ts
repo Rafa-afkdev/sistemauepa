@@ -14,6 +14,7 @@ export interface Estudiantes {
    apellidos: string,
    sexo: string,
    estado: string; // Estado del estudiante en el sistema: 'activo', 'retirado', 'egresado'
+   tipo_estudiante?: 'nuevo' | 'regular'; // Tipo de estudiante: nuevo ingreso o regular
    fechaNacimiento: string,
    createdAt?: Timestamp,
    

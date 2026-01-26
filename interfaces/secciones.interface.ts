@@ -50,3 +50,17 @@ export interface RetirarEstudiante {
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }
+
+// Interface para historial de cambios de sección
+export interface HistorialCambioSeccion {
+    id?: string;
+    id_estudiante: string;
+    id_periodo_escolar: string;
+    id_seccion_anterior: string;
+    seccion_anterior_nombre: string; // Ej: "5to Grado - A"
+    id_seccion_nueva: string;
+    seccion_nueva_nombre: string; // Ej: "5to Grado - B"
+    fecha_cambio: Timestamp;
+    motivo?: string;
+    createdAt?: Timestamp;
+}

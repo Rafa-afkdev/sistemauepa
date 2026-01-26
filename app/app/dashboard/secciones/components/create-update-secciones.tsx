@@ -4,6 +4,14 @@
 
 import { Button } from "@/components/ui/button";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -14,11 +22,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ClipboardEdit, LoaderCircle } from "lucide-react";
-import * as z from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useState, useEffect } from "react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -28,27 +36,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
-import * as React from "react";
 import { Secciones } from "@/interfaces/secciones.interface";
-import { collection, getDocs, query, where } from "firebase/firestore";
 import { User } from "@/interfaces/users.interface";
 import { addDocument, db, updateDocument } from "@/lib/data/firebase";
+import { cn } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { Check, ChevronsUpDown, ClipboardEdit, LoaderCircle } from "lucide-react";
 import { showToast } from "nextjs-toast-notify";
+import * as React from "react";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 
 interface CreateUpdateSeccionesProps {
   children: React.ReactNode;
@@ -257,15 +256,15 @@ export function CreateUpdateSecciones({
         grado_año: seccion.grado_año.trim(),
         seccion: seccion.seccion.trim().toUpperCase(),
         id_periodo_escolar: seccion.id_periodo_escolar,
-        docente_guia_id: seccion.docente_guia_id || undefined,
+        ...(seccion.docente_guia_id && { docente_guia_id: seccion.docente_guia_id }),
         limite_estudiantes: Number(seccion.limite_estudiantes),
         estudiantes_inscritos: seccion.estudiantes_inscritos
           ? Number(seccion.estudiantes_inscritos)
           : 0,
         estudiantes_ids: seccion.estudiantes_ids || [],
         estado: seccion.estado,
-        turno: seccion.turno || undefined,
-        aula: seccion.aula || undefined,
+        ...(seccion.turno && { turno: seccion.turno }),
+        ...(seccion.aula && { aula: seccion.aula }),
       };
 
       // Verificar duplicado por nivel/grado/sección/periodo
@@ -308,6 +307,27 @@ export function CreateUpdateSecciones({
         }
       }
 
+      // Validar conflicto de aula/turno
+      if (normalizedSecciones.aula && normalizedSecciones.turno) {
+        const aulaConflictQuery = query(
+          collection(db, "secciones"),
+          where("aula", "==", normalizedSecciones.aula),
+          where("turno", "==", normalizedSecciones.turno),
+          where("id_periodo_escolar", "==", normalizedSecciones.id_periodo_escolar)
+        );
+
+        const aulaConflictSnapshot = await getDocs(aulaConflictQuery);
+
+        if (!aulaConflictSnapshot.empty) {
+          const seccionConflicto = aulaConflictSnapshot.docs[0].data();
+          showToast.error(
+            `El aula ${normalizedSecciones.aula} ya está asignada en el turno ${normalizedSecciones.turno} a la sección ${seccionConflicto.grado_año}° ${seccionConflicto.nivel_educativo} ${seccionConflicto.seccion}`
+          );
+          setIsLoading(false);
+          return;
+        }
+      }
+
       if (
         normalizedSecciones.limite_estudiantes! <
         normalizedSecciones.estudiantes_inscritos!
@@ -342,15 +362,15 @@ export function CreateUpdateSecciones({
         grado_año: seccion.grado_año.trim(),
         seccion: seccion.seccion.trim().toUpperCase(),
         id_periodo_escolar: seccion.id_periodo_escolar,
-        docente_guia_id: seccion.docente_guia_id || undefined,
+        ...(seccion.docente_guia_id && { docente_guia_id: seccion.docente_guia_id }),
         limite_estudiantes: Number(seccion.limite_estudiantes),
         estudiantes_inscritos: seccion.estudiantes_inscritos
           ? Number(seccion.estudiantes_inscritos)
           : 0,
         estudiantes_ids: seccion.estudiantes_ids || [],
         estado: seccion.estado,
-        turno: seccion.turno || undefined,
-        aula: seccion.aula || undefined,
+        ...(seccion.turno && { turno: seccion.turno }),
+        ...(seccion.aula && { aula: seccion.aula }),
       };
 
       if (
@@ -382,6 +402,31 @@ export function CreateUpdateSecciones({
         if (isDocenteDuplicado) {
           showToast.error(
             "Este docente ya está asignado como tutor en otra sección del mismo nivel académico"
+          );
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Validar conflicto de aula/turno
+      if (normalizedSecciones.aula && normalizedSecciones.turno) {
+        const aulaConflictQuery = query(
+          collection(db, "secciones"),
+          where("aula", "==", normalizedSecciones.aula),
+          where("turno", "==", normalizedSecciones.turno),
+          where("id_periodo_escolar", "==", normalizedSecciones.id_periodo_escolar)
+        );
+
+        const aulaConflictSnapshot = await getDocs(aulaConflictQuery);
+        const hasConflict = aulaConflictSnapshot.docs.some(
+          (doc) => doc.id !== seccionToUpdate?.id
+        );
+
+        if (hasConflict) {
+          const conflictDoc = aulaConflictSnapshot.docs.find((doc) => doc.id !== seccionToUpdate?.id);
+          const seccionConflicto = conflictDoc?.data();
+          showToast.error(
+            `El aula ${normalizedSecciones.aula} ya está asignada en el turno ${normalizedSecciones.turno} a la sección ${seccionConflicto?.grado_año}° ${seccionConflicto?.nivel_educativo} ${seccionConflicto?.seccion}`
           );
           setIsLoading(false);
           return;
@@ -460,7 +505,7 @@ export function CreateUpdateSecciones({
                     <SelectContent>
                       <SelectGroup>
                         <SelectItem value="Grado">Educacion Primaria</SelectItem>
-                        <SelectItem value="Año">Educacion Media</SelectItem>
+                        <SelectItem value="Año">Educacion Media General</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
@@ -511,7 +556,7 @@ export function CreateUpdateSecciones({
                     <SelectContent>
                       <SelectGroup>
                         <SelectLabel>Secciones</SelectLabel>
-                        {["A", "B", "C", "D", "E", "F"].map((letra) => (
+                        {["A", "B", "C", "D", "E", "F", "U"].map((letra) => (
                           <SelectItem key={letra} value={letra}>
                             {letra}
                           </SelectItem>

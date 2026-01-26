@@ -16,13 +16,7 @@ export const DataEstudiantesSidebar = [
         icon: UserX2Icon,
         label: "Retirar Estudiante",
         href:"/app/dashboard/estudiantes/retirar", 
-    },
-
-    {
-        icon: LucideArrowLeftRight,
-        label: "Cambio De Sección",
-        href:"/app/dashboard/cambio-seccion", 
-    },
+    },  
     
     {
         icon: FileText,

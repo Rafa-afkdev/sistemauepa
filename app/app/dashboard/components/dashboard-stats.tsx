@@ -214,7 +214,7 @@ export default function DashboardStats() {
     <div className="space-y-4">
       {/* Header */}
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Panel Principal</h1>
         <p className="text-sm text-muted-foreground">
           Resumen general del sistema escolar UEPA
         </p>

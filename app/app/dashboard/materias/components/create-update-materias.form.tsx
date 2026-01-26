@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,13 +13,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, LoaderCircle } from "lucide-react";
-import * as z from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Materias } from "@/interfaces/materias.interface";
-import { addDocument, getCollection, updateDocument } from "@/lib/data/firebase";
-import { showToast } from "nextjs-toast-notify";
 import {
   Select,
   SelectContent,
@@ -30,7 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import React from "react";
+import { Materias } from "@/interfaces/materias.interface";
+import { addDocument, getCollection, updateDocument } from "@/lib/data/firebase";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Check, LoaderCircle } from "lucide-react";
+import { showToast } from "nextjs-toast-notify";
+import React, { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 
 const GRADOS_PRIMARIA = ["1", "2", "3", "4", "5", "6"];
 const GRADOS_MEDIA_GENERAL = ["1", "2", "3", "4", "5"];
@@ -144,6 +143,13 @@ export function CreateUpdateMaterias({
     setValue("grados_años", updated.join(", "), { shouldValidate: true });
   };
 
+  const handleSelectAllGrados = () => {
+    const todosLosGrados = getGradosPorNivel(nivelEducativo);
+    setSelectedGrados(todosLosGrados);
+    setValue("grados_años", todosLosGrados.join(", "), { shouldValidate: true });
+    setGradoSeleccionado("");
+  };
+
   const onSubmit = async (data: FormValues) => {
     const gradosArray = data.grados_años
       .split(",")
@@ -250,7 +256,7 @@ export function CreateUpdateMaterias({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold">
@@ -391,6 +397,16 @@ export function CreateUpdateMaterias({
                     >
                       Agregar
                     </Button>
+                    
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleSelectAllGrados}
+                      disabled={!nivelEducativo || availableGrados.length === 0}
+                      title="Seleccionar todos los grados"
+                    >
+                      Todos
+                    </Button>
                   </div>
                   <input
                     type="hidden"
@@ -485,7 +501,7 @@ export function CreateUpdateMaterias({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white">
               {isLoading && (
                 <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
               )}

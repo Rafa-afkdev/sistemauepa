@@ -1,22 +1,22 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { LayoutList, SquarePen, Trash2 } from "lucide-react";
-import { CreateUpdateStudents } from "./create-update-students.form";
-import { ConfirmDeletion } from "./confirm-deletion";
 import { Skeleton } from "@/components/ui/skeleton";
-import React, { useEffect, useState } from "react";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableFooter,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
-import { InscripcionSeccion, Secciones } from "@/interfaces/secciones.interface";
 import { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
+import { InscripcionSeccion, Secciones } from "@/interfaces/secciones.interface";
 import { getCollection } from "@/lib/data/firebase";
+import { LayoutList, SquarePen, Trash2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { ConfirmDeletion } from "./confirm-deletion";
+import { CreateUpdateStudents } from "./create-update-students.form";
 
 export function TableStudentView({
   students,
@@ -59,7 +59,7 @@ export function TableStudentView({
       }
     };
     loadRefs();
-  }, []);
+  }, [students]);
 
   const currentInscripcionByStudent: Record<string, InscripcionSeccion> = React.useMemo(() => {
     const byStudent: Record<string, InscripcionSeccion[]> = {};

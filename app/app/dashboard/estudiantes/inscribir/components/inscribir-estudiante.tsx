@@ -3,6 +3,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -12,9 +13,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ClipboardEdit, LoaderCircle } from "lucide-react";
-import { useState, useEffect } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -24,15 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import * as React from "react";
-import { InscripcionSeccion, Secciones } from "@/interfaces/secciones.interface";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
-import { where, Timestamp } from "firebase/firestore";
-import { addDocument, getCollection, updateDocument, getDocument } from "@/lib/data/firebase";
+import { InscripcionSeccion, Secciones } from "@/interfaces/secciones.interface";
+import { addDocument, getCollection, getDocument, updateDocument } from "@/lib/data/firebase";
+import { Timestamp, where } from "firebase/firestore";
+import { ClipboardEdit, LoaderCircle } from "lucide-react";
 import { showToast } from "nextjs-toast-notify";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+import * as React from "react";
+import { useEffect, useState } from "react";
 
 interface InscribirEstudianteProps {
   children: React.ReactNode;
@@ -392,7 +392,7 @@ export function InscribirEstudiante({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[800px]">
         <DialogHeader>
           <DialogTitle>Inscribir Estudiantes</DialogTitle>
           <DialogDescription>
