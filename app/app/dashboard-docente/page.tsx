@@ -2,10 +2,86 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUser } from "@/hooks/use-user";
-import { BookOpen, Users, Calendar, ClipboardList } from "lucide-react";
+import { Evaluaciones } from "@/interfaces/evaluaciones.interface";
+import { AsignacionDocenteMateria } from "@/interfaces/materias.interface";
+import { auth, getCollection } from "@/lib/data/firebase";
+import { where } from "firebase/firestore";
+import { BookOpen, Calendar, ClipboardList, Loader2, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function DashboardDocentePage() {
   const { user } = useUser();
+  const [stats, setStats] = useState({
+    materias: 0,
+    secciones: 0,
+    evaluacionesPendientes: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      // Use auth.currentUser directly to ensure we have the UID
+      const currentUser = auth.currentUser;
+      if (!currentUser?.uid) return;
+
+      try {
+        setIsLoading(true);
+        // 1. Fetch Materias y Secciones
+        const asignacionesPromise = getCollection("asignaciones_docente_materia", [
+          where("docente_id", "==", currentUser.uid),
+          where("estado", "==", "activa"),
+        ]) as Promise<AsignacionDocenteMateria[]>;
+
+        // 2. Fetch Evaluaciones Pendientes
+        // Calculamos rango de fecha para este mes
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+        const evaluacionesPromise = getCollection("evaluaciones", [
+           where("docente_id", "==", currentUser.uid),
+           where("status", "==", "POR EVALUAR"),
+           // where("fecha", ">=", startOfMonth), // Firestore puede requerir índice compuesto para esto junto con status/docente_id
+           // where("fecha", "<=", endOfMonth)    // Por ahora filtramos en cliente si falla el índice o para simplificar
+        ]) as Promise<Evaluaciones[]>;
+
+        const [asignaciones, evaluaciones] = await Promise.all([asignacionesPromise, evaluacionesPromise]);
+
+        // Procesar Asignaciones
+        const totalMaterias = asignaciones.length;
+        let totalSecciones = 0;
+        const seccionesUnicas = new Set<string>();
+
+        asignaciones.forEach(a => {
+            if (a.secciones_id) {
+                totalSecciones += a.secciones_id.length;
+                a.secciones_id.forEach(id => seccionesUnicas.add(id));
+            }
+        });
+
+        // Procesar Evaluaciones (Filtro de mes en cliente por si acaso)
+        const evaluacionesMes = evaluaciones.filter(ev => {
+             // asumiendo ev.fecha es string "YYYY-MM-DD"
+             return ev.fecha >= startOfMonth && ev.fecha <= endOfMonth;
+        });
+        
+        setStats({
+          materias: totalMaterias,
+          secciones: seccionesUnicas.size,
+          evaluacionesPendientes: evaluacionesMes.length,
+        });
+
+      } catch (error) {
+        console.error("Error fetching dashboard stats:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (user) {
+        fetchStats();
+    }
+  }, [user]);
 
   return (
     <div className="p-6 space-y-6">
@@ -23,7 +99,9 @@ export default function DashboardDocentePage() {
             <BookOpen className="h-4 w-4 text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">
+                {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats.materias}
+            </div>
             <p className="text-xs text-muted-foreground">
               Materias asignadas
             </p>
@@ -36,7 +114,9 @@ export default function DashboardDocentePage() {
             <Users className="h-4 w-4 text-green-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">
+                {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats.secciones}
+            </div>
             <p className="text-xs text-muted-foreground">
               Secciones a cargo
             </p>
@@ -49,7 +129,9 @@ export default function DashboardDocentePage() {
             <ClipboardList className="h-4 w-4 text-yellow-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">
+                {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats.evaluacionesPendientes}
+            </div>
             <p className="text-xs text-muted-foreground">
               Pendientes este mes
             </p>

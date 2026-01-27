@@ -128,30 +128,54 @@ const AsignarMateriaDialog: React.FC<AsignarMateriaDialogProps> = ({
   // 3. Que NO tengan ya asignada esta materia en este periodo
   const seccionesDisponibles = useMemo(() => {
     // Paso 1: Filtro básico
-    let filtered = secciones.filter((s) => s.nivel_educativo === "Año");
+    // console.log("Total secciones:", secciones.length);
+    // console.log("Nivel educativo esperado:", "Año" , "o", "Media General");
+    
+    let filtered = secciones.filter((s) => {
+        // Normalizamos para comparar
+        const nivel = s.nivel_educativo?.toLowerCase() || "";
+        // Aceptamos "Año" (que parece ser la convención actual para Media General en el código)
+        // O "Media General" explicito
+        return nivel.includes("año") || nivel.includes("media") || nivel.includes("general");
+    });
+    
+    // console.log("Secciones tras filtro nivel:", filtered.length, filtered);
 
     // Paso 2: Filtro por grados de la materia
-    if (materiaSeleccionada && materiaSeleccionada.grados_años) {
-      filtered = filtered.filter(s => 
-        materiaSeleccionada.grados_años.includes(s.grado_año)
-      );
+    if (materiaSeleccionada && materiaSeleccionada.grados_años && materiaSeleccionada.grados_años.length > 0) {
+      // console.log("Grados requeridos por materia:", materiaSeleccionada.grados_años);
+      filtered = filtered.filter(s => {
+        // Intentamos comparar de forma laxa
+        // Si grados_años es valid ("1", "2") y s.grado_año es "1", "2"...
+        // O si s.grado_año es "1er Año"
+        
+        const match = materiaSeleccionada.grados_años.some(g => {
+             const gStr = String(g).toLowerCase();
+             const sStr = String(s.grado_año).toLowerCase();
+             return sStr === gStr || sStr.startsWith(gStr);
+        });
+        return match;
+      });
+      // console.log("Secciones tras filtro grado:", filtered.length);
     }
 
-    // Paso 3: Excluir secciones donde YA está asignada esta materia (en BD)
-    if (periodoId && materiaIdSeleccionada) {
-      filtered = filtered.filter(s => {
-        // Buscar si existe alguna asignación para esta materia, periodo y sección
-        const yaAsignada = todasLasAsignaciones.some(a => 
-          a.periodo_escolar_id === periodoId &&
-          a.materia_id === materiaIdSeleccionada &&
-          a.secciones_id?.includes(s.id!)
-        );
-        return !yaAsignada;
-      });
-    }
+    // Paso 3: Excluir secciones donde YA está asignada esta materia - DESHABILITADO POR UX
+    // (Ya no filtramos, solo marcamos. Ver renderizado abajo)
 
     return filtered;
-  }, [secciones, materiaSeleccionada, periodoId, materiaIdSeleccionada, todasLasAsignaciones]);
+  }, [secciones, materiaSeleccionada, periodoId, materiaIdSeleccionada]); // Quitamos todasLasAsignaciones de deps porque ya no filtramos
+
+  const getAsignacionInfo = (seccionId: string) => {
+      if (!periodoId || !materiaIdSeleccionada) return null;
+      
+      const asignacion = todasLasAsignaciones.find(a => 
+          a.periodo_escolar_id === periodoId &&
+          a.materia_id === materiaIdSeleccionada &&
+          a.secciones_id?.includes(seccionId)
+      );
+      
+      return asignacion;
+  };
 
   const handleAgregarMateria = () => {
     if (!docente?.id) {
@@ -304,11 +328,20 @@ const AsignarMateriaDialog: React.FC<AsignarMateriaDialogProps> = ({
                   <SelectContent>
                     {seccionesDisponibles
                       .filter((s) => !seccionesIds.includes(s.id!))
-                      .map((s) => (
-                        <SelectItem key={s.id} value={s.id as string}>
-                          {s.grado_año}° "{s.seccion}" - {s.turno}
-                        </SelectItem>
-                      ))}
+                      .map((s) => {
+                         const asignacionExistente = getAsignacionInfo(s.id!);
+                         const isDisabled = !!asignacionExistente;
+                         
+                         return (
+                            <SelectItem 
+                                key={s.id} 
+                                value={s.id as string}
+                                disabled={isDisabled}
+                            >
+                              {s.grado_año}° "{s.seccion}" - {s.turno} {isDisabled && "(Ocupada)"}
+                            </SelectItem>
+                         );
+                      })}
                   </SelectContent>
                 </Select>
                 <Button
