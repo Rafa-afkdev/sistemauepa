@@ -29,7 +29,7 @@ export const DataEstudiantesSidebar = [
 export const DataDocenteSidebar = [
     {
         icon: UserPlus2,
-        label: "Registrar",
+        label: "Registrar Docentes",
         href: "/app/dashboard/docentes", 
     },
     {
@@ -55,6 +55,12 @@ export const DataSeccionesSidebar = [
         label: "Generar Nómina",
         href: "/app/dashboard/secciones/nomina", 
     },
+    {
+        icon:   LucideArrowLeftRight,
+        label: "Historia de Secciones",
+        href: "/app/dashboard/secciones/historial", 
+    },
+
 ]
 
 

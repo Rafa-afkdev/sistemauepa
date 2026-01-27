@@ -35,6 +35,9 @@ export interface Estudiantes {
    fecha_retiro?: Timestamp; // Fecha de retiro si aplica
    motivo_retiro?: string; // Motivo del retiro
    
+   // Representante
+   id_representante?: string; // ID del representante legal
+   
    // Metadata
    updatedAt?: Timestamp;
 }

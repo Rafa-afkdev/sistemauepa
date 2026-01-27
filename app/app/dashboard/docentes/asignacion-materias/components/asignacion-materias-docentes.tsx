@@ -12,6 +12,7 @@ import { orderBy, where } from "firebase/firestore";
 import { showToast } from "nextjs-toast-notify";
 import React, { useEffect, useMemo, useState } from "react";
 
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,7 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +32,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -50,7 +54,15 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HistorialAsignacion } from "@/interfaces/historial-asignaciones.interface";
-import { BookOpen, History as HistoryIcon, LayoutList, Loader2, NotebookPen, Search, SquarePen, Trash2, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { BookOpen, Calendar, Check, ChevronsUpDown, History as HistoryIcon, LayoutList, Loader2, NotebookPen, Plus, Search, SquarePen, Trash2, X } from "lucide-react";
+
+interface AsignacionPendiente {
+  materiaId: string;
+  seccionesIds: string[];
+  periodoId: string;
+  observaciones: string;
+}
 
 interface AsignarMateriaDialogProps {
   docente: User;
@@ -59,7 +71,10 @@ interface AsignarMateriaDialogProps {
   periodos: PeriodosEscolares[];
   asignacionesDocente: AsignacionDocenteMateria[];
   todasLasAsignaciones: AsignacionDocenteMateria[];
-  onAsignacionCreada: () => Promise<void> | void;
+  asignacionesPendientes: AsignacionPendiente[];
+  onAgregarPendiente: (asignacion: AsignacionPendiente) => void;
+  onEliminarPendiente: (index: number) => void;
+  onGuardar: () => Promise<void>;
 }
 
 const AsignarMateriaDialog: React.FC<AsignarMateriaDialogProps> = ({
@@ -69,106 +84,108 @@ const AsignarMateriaDialog: React.FC<AsignarMateriaDialogProps> = ({
   periodos,
   asignacionesDocente,
   todasLasAsignaciones,
-  onAsignacionCreada,
+  asignacionesPendientes,
+  onAgregarPendiente,
+  onEliminarPendiente,
+  onGuardar,
 }) => {
   const [open, setOpen] = useState(false);
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const nivelEducativo = "Año"; // Establecido por defecto para Media General
-  const [seccionId, setSeccionId] = useState<string>("");
-  const [materiasIds, setMateriasIds] = useState<string[]>([]);
-  const [materiaIdSeleccionada, setMateriaIdSeleccionada] = useState<string>("");
+  
   const [periodoId, setPeriodoId] = useState<string>("");
+  const [materiaIdSeleccionada, setMateriaIdSeleccionada] = useState<string>("");
+  const [openCombobox, setOpenCombobox] = useState(false);
+  const [seccionesIds, setSeccionesIds] = useState<string[]>([]);
+  const [seccionIdSeleccionada, setSeccionIdSeleccionada] = useState<string>("");
   const [observaciones, setObservaciones] = useState<string>("");
 
-  // Filtrar secciones por nivel educativo (Año = Media General)
-  const seccionesFiltradas = useMemo(() => {
-    return secciones.filter((s) => s.nivel_educativo === "Año");
-  }, [secciones]);
-
-  // Filtrar materias por nivel educativo (media_general)
+  // Filtrar materias por nivel educativo (media_general) y que no estén pendientes
   const materiasFiltradas = useMemo(() => {
-    return materias.filter((m) => m.nivel_educativo === "media_general");
-  }, [materias]);
+    return materias.filter((m) => {
+      // 1. Solo Media General
+      if (m.nivel_educativo !== "media_general") return false;
 
-  // Verificar qué materias ya están asignadas para esta sección y período (cualquier docente)
-  const materiasAsignadas = useMemo(() => {
-    const asignadas = new Set<string>();
-    if (!seccionId || !periodoId) return asignadas;
+      // 2. Que NO esté en la lista de pendientes para este periodo
+      const estaPendiente = asignacionesPendientes.some(
+        (p) => p.materiaId === m.id && p.periodoId === periodoId
+      );
+      if (estaPendiente) return false;
 
-    todasLasAsignaciones
-      .filter((a) => {
-        return (
+      return true;
+    });
+  }, [materias, asignacionesPendientes, periodoId]);
+
+  // Obtener la materia seleccionada
+  const materiaSeleccionada = useMemo(() => {
+    return materias.find(m => m.id === materiaIdSeleccionada);
+  }, [materias, materiaIdSeleccionada]);
+
+  // Filtrar secciones:
+  // 1. Por nivel (Media General)
+  // 2. Si hay materia seleccionada, solo mostrar secciones de los grados permitidos
+  // 3. Que NO tengan ya asignada esta materia en este periodo
+  const seccionesDisponibles = useMemo(() => {
+    // Paso 1: Filtro básico
+    let filtered = secciones.filter((s) => s.nivel_educativo === "Año");
+
+    // Paso 2: Filtro por grados de la materia
+    if (materiaSeleccionada && materiaSeleccionada.grados_años) {
+      filtered = filtered.filter(s => 
+        materiaSeleccionada.grados_años.includes(s.grado_año)
+      );
+    }
+
+    // Paso 3: Excluir secciones donde YA está asignada esta materia (en BD)
+    if (periodoId && materiaIdSeleccionada) {
+      filtered = filtered.filter(s => {
+        // Buscar si existe alguna asignación para esta materia, periodo y sección
+        const yaAsignada = todasLasAsignaciones.some(a => 
           a.periodo_escolar_id === periodoId &&
-          a.secciones_id?.includes(seccionId)
+          a.materia_id === materiaIdSeleccionada &&
+          a.secciones_id?.includes(s.id!)
         );
-      })
-      .forEach((a) => {
-        asignadas.add(a.materia_id);
+        return !yaAsignada;
       });
+    }
 
-    return asignadas;
-  }, [todasLasAsignaciones, seccionId, periodoId]);
+    return filtered;
+  }, [secciones, materiaSeleccionada, periodoId, materiaIdSeleccionada, todasLasAsignaciones]);
 
-  const handleSubmit = async () => {
+  const handleAgregarMateria = () => {
     if (!docente?.id) {
       showToast.error("Docente inválido");
-      return;
-    }
-    if (!seccionId) {
-      showToast.error("Debe seleccionar una sección");
-      return;
-    }
-    if (materiasIds.length === 0) {
-      showToast.error("Debe seleccionar al menos una materia");
       return;
     }
     if (!periodoId) {
       showToast.error("Debe seleccionar un período escolar");
       return;
     }
-
-    setIsSubmitting(true);
-    try {
-      // Crear un registro de asignación por cada materia seleccionada
-      const promises = materiasIds.map((materiaId) => {
-        const payload: AsignacionDocenteMateria = {
-          docente_id: docente.id,
-          materia_id: materiaId,
-          secciones_id: [seccionId], // Solo una sección por asignación
-          periodo_escolar_id: periodoId,
-          estado: "activa",
-          fecha_asignacion: new Date().toISOString(),
-          observaciones: observaciones || "",
-        };
-
-        return addDocument("asignaciones_docente_materia", {
-          ...payload,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-      });
-
-      await Promise.all(promises);
-
-      showToast.success(
-        `${materiasIds.length} materia(s) asignada(s) al docente correctamente`
-      );
-      await onAsignacionCreada();
-
-      // Reset form
-      setSeccionId("");
-      setMateriasIds([]);
-      setMateriaIdSeleccionada("");
-      setPeriodoId("");
-      setObservaciones("");
-      setOpen(false);
-    } catch (error: any) {
-      showToast.error(error?.message || "Error al asignar las materias", {
-        duration: 2500,
-      });
-    } finally {
-      setIsSubmitting(false);
+    if (!materiaIdSeleccionada) {
+      showToast.error("Debe seleccionar una materia");
+      return;
     }
+    if (seccionesIds.length === 0) {
+      showToast.error("Debe seleccionar al menos una sección");
+      return;
+    }
+
+    const asignacion: AsignacionPendiente = {
+      materiaId: materiaIdSeleccionada,
+      seccionesIds: [...seccionesIds],
+      periodoId,
+      observaciones: observaciones || "",
+    };
+    
+    onAgregarPendiente(asignacion);
+
+    showToast.success("Asignación agregada a la lista");
+
+    // Resetear selección para permitir agregar otra
+    setSeccionesIds([]);
+    setMateriaIdSeleccionada("");
+    setObservaciones("");
   };
 
   return (
@@ -181,21 +198,24 @@ const AsignarMateriaDialog: React.FC<AsignarMateriaDialogProps> = ({
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Asignar materia a docente</DialogTitle>
-          <DialogDescription>
-            Docente seleccionado: {docente.name} {docente.apellidos}
-          </DialogDescription>
+          <DialogTitle>Asignar materia a {docente.name} {docente.apellidos}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            
+            {/* 1. Período Escolar */}
+            <div className="md:col-span-2">
               <label className="mb-1 block text-sm font-medium">
                 Período Escolar <span className="text-red-500">*</span>
               </label>
               <Select
                 value={periodoId}
-                onValueChange={(value) => setPeriodoId(value)}
+                onValueChange={(value) => {
+                  setPeriodoId(value);
+                  // Limpiar selecciones dependientes al cambiar periodo
+                  setSeccionesIds([]);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccione un período" />
@@ -210,64 +230,83 @@ const AsignarMateriaDialog: React.FC<AsignarMateriaDialogProps> = ({
               </Select>
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Sección <span className="text-red-500">*</span>
-              </label>
-              <Select
-                value={seccionId}
-                onValueChange={(value) => {
-                  setSeccionId(value);
-                  // Reset materias cuando cambia la sección
-                  setMateriasIds([]);
-                  setMateriaIdSeleccionada("");
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione una sección" />
-                </SelectTrigger>
-                <SelectContent>
-                  {seccionesFiltradas.map((s) => (
-                    <SelectItem key={s.id} value={s.id as string}>
-                      {s.grado_año}° "{s.seccion}" - {s.turno}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {seccionesFiltradas.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">
-                  No hay secciones disponibles
-                </p>
-              )}
-            </div>
-
+            {/* 2. Selección de Materia (Primero) */}
             <div className="md:col-span-2">
               <label className="mb-1 block text-sm font-medium">
-                Materias <span className="text-red-500">*</span>
+                Materia <span className="text-red-500">*</span>
+              </label>
+              <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openCombobox}
+                    className="w-full justify-between"
+                    disabled={!periodoId}
+                  >
+                    {materiaIdSeleccionada
+                      ? materiasFiltradas.find((m) => m.id === materiaIdSeleccionada)?.nombre
+                      : periodoId ? "Seleccione una materia..." : "Primero seleccione un período"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  <Command>
+                    <CommandInput placeholder="Buscar materia..." />
+                    <CommandList>
+                      <CommandEmpty>No se encontró la materia.</CommandEmpty>
+                      <CommandGroup>
+                        {materiasFiltradas.map((m) => (
+                          <CommandItem
+                            key={m.id}
+                            value={m.nombre} // Busqueda por nombre
+                            onSelect={() => {
+                              setMateriaIdSeleccionada(m.id!);
+                              setSeccionesIds([]); // Limpiar secciones al cambiar materia
+                              setOpenCombobox(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                materiaIdSeleccionada === m.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {m.nombre}
+                            {m.grados_años && m.grados_años.length > 0 && (
+                              <span className="text-gray-400 text-xs ml-2">
+                                 ({m.grados_años.map(g => `${g}°`).join(", ")})
+                              </span>
+                            )}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* 3. Selección de Secciones (Filtradas por materia) */}
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-medium">
+                Secciones <span className="text-red-500">*</span>
               </label>
               <div className="flex gap-2">
                 <Select
-                  value={materiaIdSeleccionada}
-                  onValueChange={(value) => setMateriaIdSeleccionada(value)}
-                  disabled={!seccionId}
+                  value={seccionIdSeleccionada}
+                  onValueChange={(value) => setSeccionIdSeleccionada(value)}
+                  disabled={!materiaIdSeleccionada}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccione una materia" />
+                    <SelectValue placeholder={!materiaIdSeleccionada ? "Primero seleccione una materia" : "Seleccione secciones"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {materiasFiltradas
-                      .filter((m) => {
-                        const id = m.id as string;
-                        if (!id) return false;
-                        // No mostrar materias ya seleccionadas
-                        if (materiasIds.includes(id)) return false;
-                        // No mostrar materias ya asignadas
-                        if (materiasAsignadas.has(id)) return false;
-                        return true;
-                      })
-                      .map((m) => (
-                        <SelectItem key={m.id} value={m.id as string}>
-                          {m.nombre}
+                    {seccionesDisponibles
+                      .filter((s) => !seccionesIds.includes(s.id!))
+                      .map((s) => (
+                        <SelectItem key={s.id} value={s.id as string}>
+                          {s.grado_año}° "{s.seccion}" - {s.turno}
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -276,48 +315,58 @@ const AsignarMateriaDialog: React.FC<AsignarMateriaDialogProps> = ({
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    if (!materiaIdSeleccionada) return;
-                    if (materiasIds.includes(materiaIdSeleccionada)) return;
-                    if (materiasAsignadas.has(materiaIdSeleccionada)) return;
-                    setMateriasIds((prev) => [...prev, materiaIdSeleccionada]);
-                    setMateriaIdSeleccionada("");
+                    if (!seccionIdSeleccionada) return;
+                    if (seccionesIds.includes(seccionIdSeleccionada)) return;
+                    setSeccionesIds((prev) => [...prev, seccionIdSeleccionada]);
+                    setSeccionIdSeleccionada("");
                   }}
-                  disabled={!materiaIdSeleccionada}
+                  disabled={!seccionIdSeleccionada}
                 >
                   Agregar
+                  <Plus/>
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    if (!materiaIdSeleccionada) return;
+                    const ids = seccionesDisponibles.map((s) => s.id!);
+                    // Merge unique IDs
+                    setSeccionesIds((prev) => Array.from(new Set([...prev, ...ids])));
+                  }}
+                  disabled={!materiaIdSeleccionada || seccionesDisponibles.length === 0 || seccionesDisponibles.every(s => seccionesIds.includes(s.id!))}
+                  title="Agregar todas las secciones disponibles"
+                >
+                 Seleccionar Todas
+                <Check/>
                 </Button>
               </div>
-              {!nivelEducativo && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Primero seleccione un nivel educativo
-                </p>
-              )}
-              {nivelEducativo && !seccionId && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Primero seleccione una sección
-                </p>
-              )}
-              {nivelEducativo && materiasFiltradas.length === 0 && (
+
+              {/* Mensajes de ayuda/error */}
+              {materiaIdSeleccionada && seccionesDisponibles.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">
-                  No hay materias disponibles para el nivel educativo seleccionado
+                  No hay secciones disponibles para esta materia (verifique los grados o si ya está asignada).
                 </p>
               )}
 
-              {materiasIds.length > 0 && (
+              {/* Chips de secciones seleccionadas */}
+              {seccionesIds.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {materiasIds.map((id) => {
-                    const materia = materias.find((m) => m.id === id);
-                    const label = materia ? materia.nombre : id;
+                  {seccionesIds.map((id) => {
+                    const seccion = secciones.find((s) => s.id === id);
+                    const label = seccion
+                      ? `${seccion.grado_año}° "${seccion.seccion}" - ${seccion.turno}`
+                      : id;
                     return (
                       <button
                         key={id}
                         type="button"
-                        onClick={() =>
-                          setMateriasIds((prev) =>
+                        onClick={() => {
+                          setSeccionesIds((prev) =>
                             prev.filter((prevId) => prevId !== id)
-                          )
-                        }
-                        className="px-2 py-1 rounded-full bg-blue-50 border border-blue-300 text-xs text-blue-800 hover:bg-blue-100"
+                          );
+                        }}
+                        className="px-2 py-1 rounded-full bg-green-50 border border-green-300 text-xs text-green-800 hover:bg-green-100"
                       >
                         {label} <X className="inline w-3 h-3 ml-1" />
                       </button>
@@ -339,6 +388,67 @@ const AsignarMateriaDialog: React.FC<AsignarMateriaDialogProps> = ({
               />
             </div>
           </div>
+
+          {/* Lista de asignaciones pendientes */}
+          {asignacionesPendientes.length > 0 && (
+            <>
+              <Separator className="my-4" />
+              <div>
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <LayoutList className="w-4 h-4" />
+                  Asignaciones pendientes ({asignacionesPendientes.length})
+                </h3>
+                <div className="max-h-[200px] overflow-y-auto space-y-2 p-2 bg-slate-50 rounded-lg border">
+                  {asignacionesPendientes.map((asig, index) => {
+                    const materia = materias.find((m) => m.id === asig.materiaId);
+                    const periodo = periodos.find((p) => p.id === asig.periodoId);
+                    
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-start justify-between gap-2 p-2 bg-white rounded border border-slate-200 text-xs"
+                      >
+                        <div className="flex-1">
+                          <p className="font-semibold text-blue-700">
+                            {materia?.nombre || asig.materiaId}
+                          </p>
+                          <p className="text-gray-600 mt-1">
+                            <span className="font-medium">Período:</span> {periodo?.periodo || asig.periodoId}
+                          </p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {asig.seccionesIds.map((secId) => {
+                              const seccion = secciones.find((s) => s.id === secId);
+                              return (
+                                <Badge key={secId} variant="outline" className="text-xs">
+                                  {seccion
+                                    ? `${seccion.grado_año}° "${seccion.seccion}"`
+                                    : secId}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                          {asig.observaciones && (
+                            <p className="text-gray-500 mt-1 italic">
+                              {asig.observaciones}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => onEliminarPendiente(index)}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <DialogFooter className="gap-2">
@@ -348,15 +458,105 @@ const AsignarMateriaDialog: React.FC<AsignarMateriaDialogProps> = ({
             onClick={() => setOpen(false)}
             disabled={isSubmitting}
           >
-            Cancelar
+            Cerrar
           </Button>
-          <Button type="button" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting && (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          <Button 
+            type="button" 
+            variant="secondary"
+            onClick={handleAgregarMateria} 
+            disabled={!materiaIdSeleccionada || seccionesIds.length === 0}
+          >
+            Agregar a Lista
+          <Check/>
+          </Button>
+          <Button
+            type="button"
+            onClick={() => setConfirmationOpen(true)}
+            disabled={asignacionesPendientes.length === 0 || isSubmitting}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              "Guardar Todo"
             )}
-            Guardar Asignación
           </Button>
         </DialogFooter>
+
+        <AlertDialog open={confirmationOpen} onOpenChange={setConfirmationOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Está seguro de guardar las asignaciones?</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="max-h-[300px] overflow-y-auto space-y-3 px-1 mt-2">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Se dispone a guardar las siguientes asignaciones para el docente <strong>{docente.name} {docente.apellidos}</strong>:
+                  </p>
+                  
+                  <div className="space-y-3">
+                    {asignacionesPendientes.map((asig, idx) => {
+                      const mat = materias.find(m => m.id === asig.materiaId);
+                      const per = periodos.find(p => p.id === asig.periodoId);
+                      
+                      return (
+                        <div key={idx} className="bg-slate-50 border rounded-lg p-3 shadow-sm">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 bg-blue-100 text-blue-700 rounded-md">
+                                <BookOpen className="w-4 h-4" />
+                              </div>
+                              <span className="font-semibold text-sm text-slate-800">
+                                {mat?.nombre || "Materia desconocida"}
+                              </span>
+                            </div>
+                            <Badge variant="outline" className="flex items-center gap-1.5 text-xs font-normal bg-white">
+                              <Calendar className="w-3 h-3 text-slate-500" />
+                              {per?.periodo}
+                            </Badge>
+                          </div>
+                          
+                          <div className="pl-9">
+                            <p className="text-xs text-slate-500 mb-1.5 font-medium">Secciones Asignadas:</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {asig.seccionesIds.map(sid => {
+                                const s = secciones.find(sec => sec.id === sid);
+                                return (
+                                  <Badge key={sid} variant="secondary" className="px-2 py-0.5 text-xs bg-white border border-slate-200 hover:bg-slate-100 text-slate-700">
+                                    {s ? `${s.grado_año}° "${s.seccion}"` : sid}
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isSubmitting}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async (e) => {
+                  e.preventDefault();
+                  setIsSubmitting(true);
+                  await onGuardar();
+                  setIsSubmitting(false);
+                  setConfirmationOpen(false);
+                  setOpen(false);
+                }}
+                disabled={isSubmitting}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {isSubmitting ? "Guardando..." : "Confirmar"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
@@ -1017,6 +1217,10 @@ const AsignacionMateriasDocentes: React.FC = () => {
   const [todasLasAsignaciones, setTodasLasAsignaciones] = useState<AsignacionDocenteMateria[]>([]);
 
   const [selectedDocente, setSelectedDocente] = useState<User | null>(null);
+  
+  // Estado para asignaciones pendientes
+  const [asignacionesPendientes, setAsignacionesPendientes] = useState<AsignacionPendiente[]>([]);
+  const [isGuardando, setIsGuardando] = useState(false);
 
   const [isLoadingInicial, setIsLoadingInicial] = useState<boolean>(true);
   const [isLoadingAsignaciones, setIsLoadingAsignaciones] = useState<boolean>(false);
@@ -1078,7 +1282,70 @@ const AsignacionMateriasDocentes: React.FC = () => {
 
   const handleSelectDocente = async (docente: User) => {
     setSelectedDocente(docente);
+    setAsignacionesPendientes([]); // Limpiar pendientes al cambiar de docente
     await loadAsignacionesDocente(docente.id);
+  };
+
+  // Función para agregar una asignación a la lista de pendientes
+  const handleAgregarPendiente = (asignacion: AsignacionPendiente) => {
+    setAsignacionesPendientes((prev) => [...prev, asignacion]);
+  };
+
+  // Función para eliminar una asignación de la lista de pendientes
+  const handleEliminarPendiente = (index: number) => {
+    setAsignacionesPendientes((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Función para guardar todas las asignaciones pendientes
+  const handleGuardarTodasAsignaciones = async () => {
+    if (!selectedDocente?.id) {
+      showToast.error("No hay docente seleccionado");
+      return;
+    }
+
+    if (asignacionesPendientes.length === 0) {
+      showToast.error("No hay asignaciones pendientes para guardar");
+      return;
+    }
+
+    setIsGuardando(true);
+    try {
+      const promises = asignacionesPendientes.map((asig) => {
+        const payload: AsignacionDocenteMateria = {
+          docente_id: selectedDocente.id,
+          materia_id: asig.materiaId,
+          secciones_id: asig.seccionesIds,
+          periodo_escolar_id: asig.periodoId,
+          estado: "activa",
+          fecha_asignacion: new Date().toISOString(),
+          observaciones: asig.observaciones || "",
+        };
+
+        return addDocument("asignaciones_docente_materia", {
+          ...payload,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      });
+
+      await Promise.all(promises);
+
+      showToast.success(
+        `${asignacionesPendientes.length} asignación(es) guardada(s) correctamente`
+      );
+
+      // Limpiar pendientes y recargar asignaciones
+      setAsignacionesPendientes([]);
+      await loadAsignacionesDocente(selectedDocente.id);
+      
+      // Recargar todas las asignaciones
+      const resTodasAsignaciones = await getCollection("asignaciones_docente_materia");
+      setTodasLasAsignaciones(resTodasAsignaciones as AsignacionDocenteMateria[]);
+    } catch (error: any) {
+      showToast.error(error?.message || "Error al guardar las asignaciones");
+    } finally {
+      setIsGuardando(false);
+    }
   };
 
   const filteredDocentes = useMemo(() => {
@@ -1268,22 +1535,33 @@ const AsignacionMateriasDocentes: React.FC = () => {
               )}
             </div>
             {selectedDocente && (
-              <AsignarMateriaDialog
-                docente={selectedDocente}
-                materias={materias}
-                secciones={secciones}
-                periodos={periodos}
-                asignacionesDocente={asignaciones}
-                todasLasAsignaciones={todasLasAsignaciones}
-                onAsignacionCreada={async () => {
-                  if (selectedDocente?.id) {
-                    await loadAsignacionesDocente(selectedDocente.id);
-                    // Recargar todas las asignaciones para mantener el filtro actualizado
-                    const resTodasAsignaciones = await getCollection("asignaciones_docente_materia");
-                    setTodasLasAsignaciones(resTodasAsignaciones as AsignacionDocenteMateria[]);
-                  }
-                }}
-              />
+              <div className="flex items-center gap-2">
+                {asignacionesPendientes.length > 0 && (
+                  <Button
+                    variant="default"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={handleGuardarTodasAsignaciones}
+                    disabled={isGuardando}
+                  >
+                    {isGuardando && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    Guardar Todas ({asignacionesPendientes.length})
+                  </Button>
+                )}
+                <AsignarMateriaDialog
+                  docente={selectedDocente}
+                  materias={materias}
+                  secciones={secciones}
+                  periodos={periodos}
+                  asignacionesDocente={asignaciones}
+                  todasLasAsignaciones={todasLasAsignaciones}
+                  asignacionesPendientes={asignacionesPendientes}
+                  onAgregarPendiente={handleAgregarPendiente}
+                  onEliminarPendiente={handleEliminarPendiente}
+                  onGuardar={handleGuardarTodasAsignaciones}
+                />
+              </div>
             )}
           </div>
         </CardHeader>
@@ -1330,18 +1608,69 @@ const AsignacionMateriasDocentes: React.FC = () => {
                           <TableCell>{materia?.nombre || a.materia_id}</TableCell>
                           <TableCell>
                             {a.secciones_id && a.secciones_id.length > 0 ? (
-                              <ul className="space-y-1">
-                                {a.secciones_id.map((id) => {
-                                  const seccion = seccionesMap[id];
+                              <div className="flex flex-wrap gap-1">
+                                {(() => {
+                                  const total = a.secciones_id!.length;
+                                  const threshold = 3;
+                                  const visibleIds = a.secciones_id!.slice(0, threshold);
+                                  const hiddenCount = total - threshold;
+
                                   return (
-                                    <li key={id}>
-                                      {seccion
-                                        ? `${seccion.grado_año}° "${seccion.seccion}" - ${seccion.turno}`
-                                        : id}
-                                    </li>
+                                    <>
+                                      {visibleIds.map((id) => {
+                                        const seccion = seccionesMap[id];
+                                        return (
+                                          <Badge key={id} variant="secondary" className="text-xs pointer-events-none">
+                                            {seccion
+                                              ? `${seccion.grado_año}° "${seccion.seccion}"`
+                                              : id}
+                                          </Badge>
+                                        );
+                                      })}
+                                      
+                                      {hiddenCount > 0 && (
+                                        <HoverCard>
+                                          <HoverCardTrigger asChild>
+                                            <Badge variant="outline" className="text-xs cursor-pointer hover:bg-slate-100">
+                                              +{hiddenCount} más
+                                            </Badge>
+                                          </HoverCardTrigger>
+                                          <HoverCardContent className="w-80">
+                                            <div className="space-y-3">
+                                              {(() => {
+                                                const hiddenIds = a.secciones_id!.slice(threshold);
+                                                const hiddenSections = hiddenIds.map(id => seccionesMap[id]).filter(Boolean);
+                                                
+                                                const porTurno = hiddenSections.reduce((acc, sec) => {
+                                                  const turno = sec.turno || "Sin turno";
+                                                  if (!acc[turno]) acc[turno] = [];
+                                                  acc[turno].push(sec);
+                                                  return acc;
+                                                }, {} as Record<string, typeof hiddenSections>);
+
+                                                return Object.entries(porTurno).map(([turno, secs]) => (
+                                                  <div key={turno}>
+                                                    <h5 className="text-xs font-semibold text-muted-foreground mb-1.5 capitalize">
+                                                      Turno {turno}
+                                                    </h5>
+                                                    <div className="flex flex-wrap gap-1">
+                                                      {secs.map((seccion) => (
+                                                        <Badge key={seccion.id} variant="secondary" className="text-xs">
+                                                           {seccion.grado_año}° "{seccion.seccion}"
+                                                        </Badge>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                ));
+                                              })()}
+                                            </div>
+                                          </HoverCardContent>
+                                        </HoverCard>
+                                      )}
+                                    </>
                                   );
-                                })}
-                              </ul>
+                                })()}
+                              </div>
                             ) : (
                               "-"
                             )}

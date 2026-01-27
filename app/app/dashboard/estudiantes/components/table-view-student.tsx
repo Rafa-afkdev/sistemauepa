@@ -1,13 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableFooter,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
 import { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
@@ -17,6 +17,7 @@ import { LayoutList, SquarePen, Trash2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { ConfirmDeletion } from "./confirm-deletion";
 import { CreateUpdateStudents } from "./create-update-students.form";
+import { VerEstudianteDialog } from "./ver-estudiante-dialog";
 
 export function TableStudentView({
   students,
@@ -179,6 +180,10 @@ export function TableStudentView({
                     </span>
                   </TableCell>
                   <TableCell>
+                    <VerEstudianteDialog 
+                      student={student} 
+                      estatus={ins ? (estaInscrito ? "INSCRITO" : "RETIRADO") : "SIN ASIGNAR"}
+                    />
                     <CreateUpdateStudents
                       getStudents={getStudents}
                       studentToUpdate={student}

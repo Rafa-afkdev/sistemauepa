@@ -7,7 +7,7 @@ import type { Estudiantes } from "@/interfaces/estudiantes.interface";
 import { deleteDocument, getCollection, getCollectionCount, getCollectionPaginated } from "@/lib/data/firebase";
 import { orderBy } from "firebase/firestore";
 import { Search, UserPlus2, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CreateUpdateStudents } from "./create-update-students.form";
 import { TableStudentView } from "./table-view-student";
 
@@ -50,8 +50,10 @@ const Students = () => {
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalStudents, setTotalStudents] = useState<number>(0);
-  const [lastDocs, setLastDocs] = useState<Map<number, any>>(new Map());
   const [hasMore, setHasMore] = useState<boolean>(true);
+  
+  // Usar useRef para el caché de lastDocs para evitar problemas de closures
+  const lastDocsRef = useRef<Map<number, any>>(new Map());
 
   const totalPages = Math.ceil(totalStudents / PAGE_SIZE);
 
@@ -65,40 +67,72 @@ const Students = () => {
     }
   }, []);
 
-  // Obtener estudiantes con paginación
-  const getStudents = useCallback(async (page: number = 1) => {
+  // Cargar una página específica - SIEMPRE carga desde el inicio si es necesario
+  const loadPage = useCallback(async (targetPage: number, forceReload: boolean = false) => {
     const path = "estudiantes";
     const queryConstraints = [orderBy("cedula", "asc")];
     setIsLoading(true);
     
     try {
-      const lastDoc = page > 1 ? lastDocs.get(page - 1) : undefined;
+      // Si es página 1, siempre cargar directamente
+      if (targetPage === 1) {
+        lastDocsRef.current = new Map();
+        const result = await getCollectionPaginated(path, PAGE_SIZE, undefined, queryConstraints);
+        setStudents(result.docs as Estudiantes[]);
+        setHasMore(result.hasMore);
+        if (result.lastVisible) {
+          lastDocsRef.current.set(1, result.lastVisible);
+        }
+        setCurrentPage(1);
+        return;
+      }
       
-      const result = await getCollectionPaginated(
-        path, 
-        PAGE_SIZE, 
-        lastDoc,
-        queryConstraints
-      );
+      // Verificar si tenemos el lastDoc de la página anterior en caché
+      const cachedLastDoc = lastDocsRef.current.get(targetPage - 1);
       
-      setStudents(result.docs as Estudiantes[]);
-      setHasMore(result.hasMore);
-      
-      if (result.lastVisible) {
-        setLastDocs(prev => new Map(prev).set(page, result.lastVisible));
+      if (cachedLastDoc && !forceReload) {
+        // Tenemos el caché, podemos ir directamente
+        const result = await getCollectionPaginated(path, PAGE_SIZE, cachedLastDoc, queryConstraints);
+        setStudents(result.docs as Estudiantes[]);
+        setHasMore(result.hasMore);
+        if (result.lastVisible) {
+          lastDocsRef.current.set(targetPage, result.lastVisible);
+        }
+        setCurrentPage(targetPage);
+      } else {
+        // No tenemos el caché, cargar todas las páginas desde el inicio
+        lastDocsRef.current = new Map();
+        let currentLastDoc: any = undefined;
+        
+        for (let p = 1; p <= targetPage; p++) {
+          const result = await getCollectionPaginated(path, PAGE_SIZE, currentLastDoc, queryConstraints);
+          
+          if (result.lastVisible) {
+            lastDocsRef.current.set(p, result.lastVisible);
+            currentLastDoc = result.lastVisible;
+          }
+          
+          // Solo establecer los datos cuando llegamos a la página objetivo
+          if (p === targetPage) {
+            setStudents(result.docs as Estudiantes[]);
+            setHasMore(result.hasMore);
+          }
+        }
+        
+        setCurrentPage(targetPage);
       }
     } catch (error) {
       console.error(error);
     } finally {
       setIsLoading(false);
     }
-  }, [lastDocs]);
+  }, []);
 
   // Búsqueda en Firebase
   const searchStudents = useCallback(async (query: string, type: "cedula" | "nombres") => {
     if (!query.trim()) {
       setIsSearching(false);
-      await refreshStudents();
+      await loadPage(1, true);
       return;
     }
 
@@ -132,7 +166,7 @@ const Students = () => {
   useEffect(() => {
     if (user) {
       getTotalCount();
-      getStudents(1);
+      loadPage(1, true);
     }
   }, [user]);
 
@@ -144,7 +178,7 @@ const Students = () => {
       } else if (isSearching) {
         // Si se borró la búsqueda, volver a cargar con paginación
         setIsSearching(false);
-        refreshStudents();
+        loadPage(1, true);
       }
     }, 300); // Debounce de 300ms
 
@@ -154,60 +188,20 @@ const Students = () => {
   // Navegación de páginas
   const handlePageChange = async (page: number) => {
     if (page < 1 || page > totalPages || page === currentPage) return;
-    
-    if (page < currentPage) {
-      setLastDocs(new Map());
-      setCurrentPage(1);
-      await loadPagesToPage(page);
-    } else {
-      setCurrentPage(page);
-      await getStudents(page);
-    }
+    await loadPage(page, false);
   };
 
-  const loadPagesToPage = async (targetPage: number) => {
-    const path = "estudiantes";
-    const queryConstraints = [orderBy("cedula", "asc")];
-    setIsLoading(true);
-    
-    try {
-      let currentLastDoc: any = undefined;
-      const newLastDocs = new Map<number, any>();
-      
-      for (let p = 1; p <= targetPage; p++) {
-        const result = await getCollectionPaginated(
-          path,
-          PAGE_SIZE,
-          currentLastDoc,
-          queryConstraints
-        );
-        
-        if (result.lastVisible) {
-          newLastDocs.set(p, result.lastVisible);
-          currentLastDoc = result.lastVisible;
-        }
-        
-        if (p === targetPage) {
-          setStudents(result.docs as Estudiantes[]);
-          setHasMore(result.hasMore);
-        }
-      }
-      
-      setLastDocs(newLastDocs);
-      setCurrentPage(targetPage);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Recargar lista
-  const refreshStudents = async () => {
+  // Recargar lista manteniendo la página actual
+  const refreshStudents = async (keepCurrentPage: boolean = false) => {
     await getTotalCount();
-    setLastDocs(new Map());
-    setCurrentPage(1);
-    await getStudents(1);
+    
+    if (keepCurrentPage && currentPage > 0) {
+      // Limpiar caché y recargar desde el inicio hasta la página actual
+      await loadPage(currentPage, true);
+    } else {
+      // Volver a la página 1
+      await loadPage(1, true);
+    }
   };
 
   // Limpiar búsqueda
@@ -259,7 +253,7 @@ const Students = () => {
       <CardHeader>
         <div className="flex justify-between items-center">
         <CardTitle className="text-2xl">Estudiantes</CardTitle>
-        <CreateUpdateStudents getStudents={refreshStudents}>
+        <CreateUpdateStudents getStudents={() => refreshStudents(true)}>
             <Button variant="outline">
               Agregar Estudiante
               <UserPlus2 className="ml-2 w-5" />
@@ -314,7 +308,7 @@ const Students = () => {
       <CardContent>
         <TableStudentView
           deleteStudent={deleteStudent}
-          getStudents={refreshStudents}
+          getStudents={() => refreshStudents(true)}
           students={students}
           isLoading={isLoading}
         />

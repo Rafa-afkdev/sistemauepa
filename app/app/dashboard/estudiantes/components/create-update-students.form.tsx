@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 import { useEffect } from "react";
 
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -26,9 +27,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
 import { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
 import { HistorialCambioSeccion, InscripcionSeccion, Secciones } from "@/interfaces/secciones.interface";
+import { Representante } from "@/interfaces/users.interface";
 import estados from "@/lib/data/data-estados";
 import {
   addDocument,
@@ -78,8 +81,33 @@ export function CreateUpdateStudents({
   const [selectedPeriodo, setSelectedPeriodo] = useState<string>("");
   const [selectedNivelAcademico, setSelectedNivelAcademico] = useState<string>("");
   const [selectedSeccion, setSelectedSeccion] = useState<string>("");
+  const [pendingSeccion, setPendingSeccion] = useState<string>(""); // Sección pendiente de selección
   const [tipoEstudiante, setTipoEstudiante] = useState<'nuevo' | 'regular'>('nuevo');
   const [inscripcionActual, setInscripcionActual] = useState<InscripcionSeccion | null>(null);
+
+  // Estados para datos del representante
+  const [representanteData, setRepresentanteData] = useState<{
+    tipo_cedula: 'V' | 'E';
+    cedula: string;
+    nombres: string;
+    apellidos: string;
+    parentesco: string;
+    telefono_principal: string;
+    telefono_secundario: string;
+    email: string;
+    direccion: string;
+  }>({
+    tipo_cedula: 'V',
+    cedula: '',
+    nombres: '',
+    apellidos: '',
+    parentesco: '',
+    telefono_principal: '',
+    telefono_secundario: '',
+    email: '',
+    direccion: ''
+  });
+  const [representanteExistente, setRepresentanteExistente] = useState<Representante | null>(null);
 
   const formSchema = z.object({
     tipo_cedula: z.enum(['V', 'E'], {
@@ -170,12 +198,26 @@ export function CreateUpdateStudents({
         // Establecer tipo de estudiante
         setTipoEstudiante(studentToUpdate.tipo_estudiante || 'regular');
 
-        // Establecer periodo y sección si existen
+        // Establecer periodo si existe
         if (studentToUpdate.periodo_escolar_actual) {
           setSelectedPeriodo(studentToUpdate.periodo_escolar_actual);
         }
+
+        // Cargar la sección actual para obtener el nivel académico
         if (studentToUpdate.seccion_actual) {
-          setSelectedSeccion(studentToUpdate.seccion_actual);
+          try {
+            const seccionActual = await getDocument(`secciones/${studentToUpdate.seccion_actual}`) as Secciones;
+            if (seccionActual) {
+              // Establecer el nivel académico desde la sección
+              setSelectedNivelAcademico(seccionActual.nivel_educativo || "");
+              // Guardar la sección como pendiente (se establecerá cuando las secciones filtradas estén disponibles)
+              setPendingSeccion(studentToUpdate.seccion_actual);
+            }
+          } catch (error) {
+            console.error("Error al cargar sección actual:", error);
+            // Si falla, guardar como pendiente de todos modos
+            setPendingSeccion(studentToUpdate.seccion_actual);
+          }
         }
 
         // Encontrar el índice del estado
@@ -198,6 +240,29 @@ export function CreateUpdateStudents({
             }
           } catch (error) {
             console.error("Error al cargar inscripción actual:", error);
+          }
+        }
+
+        // Cargar datos del representante si existe
+        if (studentToUpdate.id_representante) {
+          try {
+            const representante = await getDocument(`representantes/${studentToUpdate.id_representante}`) as Representante;
+            if (representante) {
+              setRepresentanteExistente(representante);
+              setRepresentanteData({
+                tipo_cedula: representante.tipo_cedula || 'V',
+                cedula: representante.cedula || '',
+                nombres: representante.nombres || '',
+                apellidos: representante.apellidos || '',
+                parentesco: representante.parentesco || '',
+                telefono_principal: representante.telefono_principal || '',
+                telefono_secundario: representante.telefono_secundario || '',
+                email: representante.email || '',
+                direccion: representante.direccion || ''
+              });
+            }
+          } catch (error) {
+            console.error("Error al cargar representante:", error);
           }
         }
       }
@@ -230,6 +295,18 @@ export function CreateUpdateStudents({
       setSeccionesFiltradas([]);
     }
   }, [selectedPeriodo, selectedNivelAcademico, secciones]);
+
+  // Establecer la sección pendiente cuando las secciones filtradas estén disponibles
+  useEffect(() => {
+    if (pendingSeccion && seccionesFiltradas.length > 0) {
+      // Verificar si la sección pendiente existe en las secciones filtradas
+      const seccionExiste = seccionesFiltradas.some(s => s.id === pendingSeccion);
+      if (seccionExiste) {
+        setSelectedSeccion(pendingSeccion);
+        setPendingSeccion(""); // Limpiar la sección pendiente
+      }
+    }
+  }, [pendingSeccion, seccionesFiltradas]);
 
   const { register, handleSubmit, formState } = form;
   const { errors } = formState;
@@ -301,6 +378,37 @@ export function CreateUpdateStudents({
       return;
     }
 
+    // Validar campos del representante
+    if (!representanteData.cedula || representanteData.cedula.length < 6) {
+      showToast.error("Debes ingresar la cédula del representante");
+      return;
+    }
+
+    if (!representanteData.nombres) {
+      showToast.error("Debes ingresar los nombres del representante");
+      return;
+    }
+
+    if (!representanteData.apellidos) {
+      showToast.error("Debes ingresar los apellidos del representante");
+      return;
+    }
+
+    if (!representanteData.parentesco) {
+      showToast.error("Debes seleccionar el parentesco del representante");
+      return;
+    }
+
+    if (!representanteData.telefono_principal) {
+      showToast.error("Debes ingresar el teléfono principal del representante");
+      return;
+    }
+
+    if (!representanteData.direccion) {
+      showToast.error("Debes ingresar la dirección del representante");
+      return;
+    }
+
     const studentData: Estudiantes = {
       ...data,
       cedula: Number(data.cedula),
@@ -313,6 +421,58 @@ export function CreateUpdateStudents({
       await UpdateStudent(studentData);
     } else {
       await CreateStudent(studentData);
+    }
+  };
+
+  // Helper para guardar o actualizar representante
+  const guardarRepresentante = async (estudianteId: string): Promise<string | null> => {
+    try {
+      // Buscar si ya existe un representante con esta cédula
+      const representantesExistentes = await getCollection("representantes", [
+        where("cedula", "==", representanteData.cedula),
+      ]) as Representante[];
+
+      if (representantesExistentes.length > 0) {
+        // El representante ya existe, actualizar y agregar estudiante si no está
+        const repExistente = representantesExistentes[0];
+        const estudiantesIds = repExistente.estudiantes_ids || [];
+        
+        if (!estudiantesIds.includes(estudianteId)) {
+          estudiantesIds.push(estudianteId);
+        }
+
+        await updateDocument(`representantes/${repExistente.id}`, {
+          ...representanteData,
+          nombres: representanteData.nombres.toUpperCase(),
+          apellidos: representanteData.apellidos.toUpperCase(),
+          direccion: representanteData.direccion.toUpperCase(),
+          estudiantes_ids: estudiantesIds,
+          updatedAt: Timestamp.now(),
+        });
+
+        return repExistente.id!;
+      } else {
+        // Crear nuevo representante
+        const nuevoRepresentante: Partial<Representante> = {
+          tipo_cedula: representanteData.tipo_cedula,
+          cedula: representanteData.cedula,
+          nombres: representanteData.nombres.toUpperCase(),
+          apellidos: representanteData.apellidos.toUpperCase(),
+          parentesco: representanteData.parentesco,
+          telefono_principal: representanteData.telefono_principal,
+          telefono_secundario: representanteData.telefono_secundario,
+          email: representanteData.email,
+          direccion: representanteData.direccion.toUpperCase(),
+          estudiantes_ids: [estudianteId],
+          createdAt: Timestamp.now(),
+        };
+
+        const repDoc = await addDocument("representantes", nuevoRepresentante);
+        return repDoc.id;
+      }
+    } catch (error) {
+      console.error("Error al guardar representante:", error);
+      return null;
     }
   };
 
@@ -432,6 +592,14 @@ export function CreateUpdateStudents({
         estudiantes_inscritos: nuevosInscritos,
         estudiantes_ids: estudiantesIds,
       });
+
+      // Guardar representante y vincular con estudiante
+      const representanteId = await guardarRepresentante(estudianteId);
+      if (representanteId) {
+        await updateDocument(`estudiantes/${estudianteId}`, {
+          id_representante: representanteId,
+        });
+      }
   
       showToast.success("El estudiante fue registrado e inscrito exitosamente");
       getStudents();
@@ -614,6 +782,15 @@ export function CreateUpdateStudents({
       };
     
       await updateDocument(path, normalizedStudent);
+
+      // Guardar/actualizar representante y vincular con estudiante
+      const representanteId = await guardarRepresentante(studentToUpdate?.id!);
+      if (representanteId && representanteId !== studentToUpdate?.id_representante) {
+        await updateDocument(path, {
+          id_representante: representanteId,
+        });
+      }
+
       showToast.success("El estudiante fue actualizado exitosamente");
       getStudents();
       setOpen(false);
@@ -635,6 +812,19 @@ export function CreateUpdateStudents({
     setInscripcionActual(null);
     setEstadoSeleccionado(null);
     setMunicipioSeleccionado(null);
+    // Reset datos del representante
+    setRepresentanteData({
+      tipo_cedula: 'V',
+      cedula: '',
+      nombres: '',
+      apellidos: '',
+      parentesco: '',
+      telefono_principal: '',
+      telefono_secundario: '',
+      email: '',
+      direccion: ''
+    });
+    setRepresentanteExistente(null);
   };
 
 return (
@@ -653,36 +843,65 @@ return (
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5 py-6">
-            {/* Sección: Tipo de Estudiante */}
-            <div className="space-y-4 bg-gradient-to-r from-gray-50 to-gray-100 p-5 rounded-lg border border-gray-200 shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-300 pb-2 flex items-center gap-2">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+          <Tabs defaultValue="inscripcion" className="w-full py-4">
+            <TabsList className="grid w-full grid-cols-3 mb-6 bg-blue-100 border-blue-300">
+              <TabsTrigger value="inscripcion" className="flex items-center gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Clasificación del Estudiante
-              </h3>
-              
-              <div>
-                <Label htmlFor="tipo_estudiante" className="mb-2 block">
-                  Tipo de Estudiante <span className="text-red-500">*</span>
-                </Label>
-                <Select value={tipoEstudiante} onValueChange={(value: 'nuevo' | 'regular') => setTipoEstudiante(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona el tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nuevo">Nuevo</SelectItem>
-                    <SelectItem value="regular">Regular</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-500 mt-1">
-                  Nuevo: Primer ingreso al colegio | Regular: Ya ha estudiado en el colegio
-                </p>
-              </div>
-            </div>
+                Inscripción
+              </TabsTrigger>
+              <TabsTrigger value="estudiante" className="flex items-center gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                Datos del Estudiante
+              </TabsTrigger>
+              <TabsTrigger value="representante" className="flex items-center gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Representante
+              </TabsTrigger>
+            </TabsList>
 
-            {/* Sección: Inscripción */}
+            {/* Tab: Inscripción */}
+            <TabsContent value="inscripcion" className="space-y-5">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+              >
+              {/* Sección: Tipo de Estudiante */}
+              <div className="space-y-4 bg-gradient-to-r from-gray-50 to-gray-100 p-5 rounded-lg border border-gray-200 shadow-sm">
+                <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-300 pb-2 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  Clasificación del Estudiante
+                </h3>
+                
+                <div>
+                  <Label htmlFor="tipo_estudiante" className="mb-2 block">
+                    Tipo de Estudiante <span className="text-red-500">*</span>
+                  </Label>
+                  <Select value={tipoEstudiante} onValueChange={(value: 'nuevo' | 'regular') => setTipoEstudiante(value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona el tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nuevo">Nuevo</SelectItem>
+                      <SelectItem value="regular">Regular</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Nuevo: Primer ingreso al colegio | Regular: Ya ha estudiado en el colegio
+                  </p>
+                </div>
+              </div>
+
+              {/* Sección: Inscripción */}
             <div className="space-y-4 bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 p-5 rounded-xl border-2 border-blue-300 shadow-md">
               <h3 className="text-base font-bold text-blue-900 flex items-center gap-2 pb-2 border-b-2 border-blue-300">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -794,8 +1013,18 @@ return (
                 </div>
               )}
             </div>
+              </motion.div>
+            </TabsContent>
 
-            {/* Sección: Datos de Identificación */}
+            {/* Tab: Datos del Estudiante */}
+            <TabsContent value="estudiante" className="space-y-5">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+              >
+              {/* Sección: Datos de Identificación */}
             <div className="space-y-4 bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
               <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-300 pb-2 flex items-center gap-2">
                 <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1181,7 +1410,195 @@ return (
                 </div>
               </div>
             </div>
-          </div>
+              </motion.div>
+            </TabsContent>
+
+            {/* Tab: Datos del Representante */}
+            <TabsContent value="representante" className="space-y-5">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+              >
+              {/* Sección: Datos del Representante */}
+            <div className="space-y-4 bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-300 pb-2 flex items-center gap-2">
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Datos del Representante
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Tipo y Cédula del Representante */}
+                <div className="flex gap-2">
+                  <div className="w-24">
+                    <Label htmlFor="rep_tipo_cedula" className="mb-2 block">
+                      Tipo
+                    </Label>
+                    <select
+                      id="rep_tipo_cedula"
+                      value={representanteData.tipo_cedula}
+                      onChange={(e) => setRepresentanteData({
+                        ...representanteData,
+                        tipo_cedula: e.target.value as 'V' | 'E'
+                      })}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="V">V</option>
+                      <option value="E">E</option>
+                    </select>
+                  </div>
+
+                  <div className="flex-1">
+                    <Label htmlFor="rep_cedula" className="mb-2 block">
+                      Cédula del Representante <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="rep_cedula"
+                      placeholder="Ingrese la cédula"
+                      value={representanteData.cedula}
+                      onChange={(e) => setRepresentanteData({
+                        ...representanteData,
+                        cedula: e.target.value.replace(/\D/g, '').slice(0, 11)
+                      })}
+                      maxLength={11}
+                    />
+                  </div>
+                </div>
+
+                {/* Parentesco */}
+                <div>
+                  <Label htmlFor="rep_parentesco" className="mb-2 block">
+                    Parentesco <span className="text-red-500">*</span>
+                  </Label>
+                  <Select
+                    value={representanteData.parentesco}
+                    onValueChange={(value) => setRepresentanteData({
+                      ...representanteData,
+                      parentesco: value
+                    })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccione parentesco" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Parentesco</SelectLabel>
+                        <SelectItem value="Madre">Madre</SelectItem>
+                        <SelectItem value="Padre">Padre</SelectItem>
+                        <SelectItem value="Abuelo(a)">Abuelo(a)</SelectItem>
+                        <SelectItem value="Tío(a)">Tío(a)</SelectItem>
+                        <SelectItem value="Hermano(a)">Hermano(a)</SelectItem>
+                        <SelectItem value="Tutor Legal">Tutor Legal</SelectItem>
+                        <SelectItem value="Otro">Otro</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Nombres */}
+                <div>
+                  <Label htmlFor="rep_nombres" className="mb-2 block">
+                    Nombres <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="rep_nombres"
+                    placeholder="Nombres del representante"
+                    value={representanteData.nombres}
+                    onChange={(e) => setRepresentanteData({
+                      ...representanteData,
+                      nombres: e.target.value
+                    })}
+                  />
+                </div>
+
+                {/* Apellidos */}
+                <div>
+                  <Label htmlFor="rep_apellidos" className="mb-2 block">
+                    Apellidos <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="rep_apellidos"
+                    placeholder="Apellidos del representante"
+                    value={representanteData.apellidos}
+                    onChange={(e) => setRepresentanteData({
+                      ...representanteData,
+                      apellidos: e.target.value
+                    })}
+                  />
+                </div>
+
+                {/* Teléfono Principal */}
+                <div>
+                  <Label htmlFor="rep_telefono_principal" className="mb-2 block">
+                    Teléfono Principal <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="rep_telefono_principal"
+                    placeholder="Ej: 04XX-XXXXXXX"
+                    value={representanteData.telefono_principal}
+                    onChange={(e) => setRepresentanteData({
+                      ...representanteData,
+                      telefono_principal: e.target.value
+                    })}
+                  />
+                </div>
+
+                {/* Teléfono Secundario */}
+                <div>
+                  <Label htmlFor="rep_telefono_secundario" className="mb-2 block">
+                    Teléfono Secundario
+                  </Label>
+                  <Input
+                    id="rep_telefono_secundario"
+                    placeholder="Ej: 04XX-XXXXXXX (opcional)"
+                    value={representanteData.telefono_secundario}
+                    onChange={(e) => setRepresentanteData({
+                      ...representanteData,
+                      telefono_secundario: e.target.value
+                    })}
+                  />
+                </div>
+
+                {/* Email */}
+                <div>
+                  <Label htmlFor="rep_email" className="mb-2 block">
+                    Correo Electrónico
+                  </Label>
+                  <Input
+                    id="rep_email"
+                    type="email"
+                    placeholder="correo@ejemplo.com (opcional)"
+                    value={representanteData.email}
+                    onChange={(e) => setRepresentanteData({
+                      ...representanteData,
+                      email: e.target.value.toLowerCase()
+                    })}
+                  />
+                </div>
+
+                {/* Dirección - ocupa toda la fila */}
+                <div className="md:col-span-2">
+                  <Label htmlFor="rep_direccion" className="mb-2 block">
+                    Dirección <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="rep_direccion"
+                    placeholder="Dirección completa del representante"
+                    value={representanteData.direccion}
+                    onChange={(e) => setRepresentanteData({
+                      ...representanteData,
+                      direccion: e.target.value
+                    })}
+                  />
+                </div>
+              </div>
+            </div>
+              </motion.div>
+            </TabsContent>
+          </Tabs>
 
           <DialogFooter className="gap-2 pt-4 border-t border-gray-200 bg-gray-50 -mx-6 -mb-6 px-6 py-4 rounded-b-lg">
             <Button

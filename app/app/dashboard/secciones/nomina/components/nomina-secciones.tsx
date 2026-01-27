@@ -2,17 +2,16 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
-import { useState, useEffect } from "react";
-import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/data/firebase";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { useEffect, useState } from "react";
 // Importaciones de shadcn/ui
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileText, Loader2 } from "lucide-react";
-import React from "react";
 
 export default function NominaSeccion() {
   const [periodos, setPeriodos] = useState<{ id: string; periodo: string; status: string }[]>([]);
@@ -103,8 +102,9 @@ export default function NominaSeccion() {
         );
         const snapshot = await getDocs(q);
         
-        // Extraer grados/años únicos
-        const gradosData = [...new Set(snapshot.docs.map(doc => doc.data().grado_año))];
+        // Extraer grados/años únicos y ordenarlos numéricamente
+        const gradosData = [...new Set(snapshot.docs.map(doc => doc.data().grado_año))]
+          .sort((a, b) => parseInt(a) - parseInt(b));
         setGradosAnios(gradosData);
         setGradoAnioSeleccionado("");
         setSecciones([]);

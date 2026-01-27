@@ -100,13 +100,14 @@ export const getCollectionPaginated = async(
     const ref = collection(db, colectionName);
     let constraints = queryArray ? [...queryArray] : [];
     
-    // Agregar limit
-    constraints.push(limit(pageSize));
-    
+    // IMPORTANTE: startAfter debe ir ANTES de limit
     // Si hay un documento anterior, empezar después de él
     if (lastDoc) {
         constraints.push(startAfter(lastDoc));
     }
+    
+    // Agregar limit al final
+    constraints.push(limit(pageSize));
     
     const q = query(ref, ...constraints);
     const snapshot = await getDocs(q);
