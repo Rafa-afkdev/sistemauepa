@@ -360,7 +360,7 @@ export function CreateConstanciaStudent() {
       { text:"V-" + estudiante.cedula.toString(), font: boldFont },
       { text: ", cursa ", font: arialFont },
       { text: "ESTUDIOS", font: boldFont, underline: true },
-      { text: ` de ${gradoAño ?? "N/A"}° ${nivelEducativo ?? "N/A"}, en el Nivel de ${nivelEducativo === "Grado" ? "Educación Primaria" : "Educación Media General"}, en esta Institución. En el Periodo Escolar ${periodoNombre ?? "N/A"}.`, font: arialFont },
+      { text: ` de ${gradoAño ?? "N/A"} ${nivelEducativo ?? "N/A"}, en el Nivel de ${nivelEducativo === "Grado" ? "Educación Primaria" : "Educación Media General"}, en esta Institución. En el Periodo Escolar ${periodoNombre ?? "N/A"}.`, font: arialFont },
     ];
 
     const effectiveWidth = width - leftMargin - rightMargin - indentSize; // Ajustado para la sangría
@@ -686,7 +686,7 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
       { text:"V-" + student.cedula.toString(), font: boldFont },
       { text: ", ha sido ", font: arialFont },
       { text: "INSCRITO", font: boldFont, underline: true },
-      { text: ` de ${gradoAño ?? "N/A"}° ${nivelEducativo ?? "N/A"}, en el Nivel de ${nivelEducativo === "Grado" ? "Educación Primaria" : "Educación Media General"}, en esta Institución. En el Periodo Escolar ${periodoNombre ?? "N/A"}.`, font: arialFont },
+      { text: ` de ${gradoAño ?? "N/A"} ${nivelEducativo ?? "N/A"}, en el Nivel de ${nivelEducativo === "Grado" ? "Educación Primaria" : "Educación Media General"}, en esta Institución. En el Periodo Escolar ${periodoNombre ?? "N/A"}.`, font: arialFont },
     ];
 
     const effectiveWidth = width - leftMargin - rightMargin - indentSize; // Ajustado para la sangría
@@ -974,7 +974,7 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
       { text: " Representante de:", font: arialFont },
       { text: `${student.apellidos} ${student.nombres}`, font: boldFont },
       { text: ", cursante de:", font: arialFont },
-      { text: `${gradoAño ?? "N/A"}° "${seccionNombre ?? "U"}"`, font: boldFont },
+      { text: `${gradoAño ?? "N/A"} "${seccionNombre ?? "U"}"`, font: boldFont },
       { text: " asistió el:", font: arialFont },
       { text: `${formattedDate}`, font: boldFont },
       { text: " a esta institución, para atender asuntos relacionados con su representado.", font: arialFont },

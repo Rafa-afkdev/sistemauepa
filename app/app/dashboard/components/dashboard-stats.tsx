@@ -23,7 +23,11 @@ import {
   UserCheck,
   Users
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { GenerateRepresentativeReport } from "./generate-representative-report";
+import { GenerateSectionReport } from "./generate-section-report";
+import { GenerateStudentReport } from "./generate-student-report";
+import { GenerateTeacherReport } from "./generate-teacher-report";
 
 interface DashboardStats {
   totalEstudiantes: number;
@@ -48,7 +52,8 @@ const StatCard = ({
   icon: Icon, 
   loading,
   subtitle,
-  trend 
+  trend,
+  action
 }: { 
   title: string; 
   value: string | number; 
@@ -56,12 +61,16 @@ const StatCard = ({
   loading: boolean;
   subtitle?: string;
   trend?: string;
+  action?: ReactNode;
 }) => (
   <Card className="hover:shadow-md transition-shadow">
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
       <CardTitle className="text-xs font-medium text-muted-foreground">{title}</CardTitle>
-      <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
-        <Icon className="h-3.5 w-3.5 text-primary" />
+      <div className="flex items-center gap-2">
+        {action}
+        <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
+          <Icon className="h-3.5 w-3.5 text-primary" />
+        </div>
       </div>
     </CardHeader>
     <CardContent className="pt-0">
@@ -120,20 +129,30 @@ export default function DashboardStats() {
         secciones,
         periodos,
         lapsos,
-        representantesCount
+        representantesCount,
+        inscripciones
       ] = await Promise.all([
         getCollection("estudiantes") as Promise<Estudiantes[]>,
         getCollection("users") as Promise<User[]>,
         getCollection("secciones") as Promise<Secciones[]>,
         getCollection("periodos_escolares") as Promise<PeriodosEscolares[]>,
         getCollection("lapsos") as Promise<LapsosEscolares[]>,
-        getCollectionCount("representantes")
+        getCollectionCount("representantes"),
+        getCollection("estudiantes_inscritos") as Promise<any[]>
       ]);
+
+      // Encontrar periodo activo
+      const periodoActivo = periodos.find((p) => p.status === "ACTIVO");
+      
+      // Filtrar secciones por periodo activo
+      const seccionesActivas = periodoActivo 
+        ? secciones.filter(s => s.id_periodo_escolar === periodoActivo.id) 
+        : [];
 
       // Calcular estadísticas de estudiantes
       const totalEstudiantes = estudiantes.length;
-      const estudiantesActivos = estudiantes.filter(
-        (e) => e.estado === "activo"
+      const estudiantesActivos = inscripciones.filter(
+        (i) => (i.estado || "").toLowerCase() === "activo"
       ).length;
 
       // Calcular estadísticas de docentes
@@ -144,11 +163,11 @@ export default function DashboardStats() {
       ).length;
 
       // Calcular estadísticas de secciones
-      const totalSecciones = secciones.length;
+      const totalSecciones = seccionesActivas.length;
       
       // Encontrar sección con más estudiantes
-      let seccionMax = secciones[0];
-      secciones.forEach((seccion) => {
+      let seccionMax = seccionesActivas[0];
+      seccionesActivas.forEach((seccion) => {
         if ((seccion.estudiantes_inscritos || 0) > (seccionMax?.estudiantes_inscritos || 0)) {
           seccionMax = seccion;
         }
@@ -165,18 +184,15 @@ export default function DashboardStats() {
           };
 
       // Calcular cupos
-      const cuposTotales = secciones.reduce(
+      const cuposTotales = seccionesActivas.reduce(
         (sum, s) => sum + (s.limite_estudiantes || 0),
         0
       );
-      const estudiantesInscritos = secciones.reduce(
+      const estudiantesInscritos = seccionesActivas.reduce(
         (sum, s) => sum + (s.estudiantes_inscritos || 0),
         0
       );
       const cuposDisponibles = cuposTotales - estudiantesInscritos;
-
-      // Encontrar periodo activo
-      const periodoActivo = periodos.find((p) => p.status === "ACTIVO");
       
       // Encontrar lapso activo
       const lapsoActivo = lapsos.find((l) => l.status === "ACTIVO");
@@ -302,6 +318,9 @@ export default function DashboardStats() {
             icon={Users}
             loading={isLoading}
             subtitle={`${stats.estudiantesActivos} activos`}
+            action={
+              <GenerateStudentReport />
+            }
           />
           
       <StatCard
@@ -310,6 +329,9 @@ export default function DashboardStats() {
             icon={GraduationCap}
             loading={isLoading}
             subtitle={`${stats.docentesActivos} activos`}
+            action={
+              <GenerateTeacherReport />
+            }
           />
 
           <StatCard
@@ -317,6 +339,9 @@ export default function DashboardStats() {
             value={stats.totalRepresentantes}
             icon={Users}
             loading={isLoading}
+            action={
+              <GenerateRepresentativeReport />
+            }
           />
 
           <StatCard
@@ -324,6 +349,9 @@ export default function DashboardStats() {
             value={stats.totalSecciones}
             icon={School}
             loading={isLoading}
+            action={
+              <GenerateSectionReport />
+            }
           />
 
           <StatCard
