@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -18,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { db } from "@/lib/data/firebase";
+import { differenceInYears, parseISO } from "date-fns";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { FileText, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -30,6 +33,7 @@ export const GenerateSectionReport = () => {
   const [loading, setLoading] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [includeAge, setIncludeAge] = useState(false);
 
   // Data States
   const [periodos, setPeriodos] = useState<{ id: string; periodo: string; status: string }[]>([]);
@@ -137,6 +141,15 @@ export const GenerateSectionReport = () => {
     }
   }, [gradoAnioSeleccionado, nivelEducativoSeleccionado, allSecciones]);
 
+  const calculateAge = (fechaNacimiento: string | undefined) => {
+    if (!fechaNacimiento) return "N/A";
+    try {
+      const birthDate = parseISO(fechaNacimiento);
+      return differenceInYears(new Date(), birthDate).toString();
+    } catch (e) {
+      return "N/A";
+    }
+  };
 
   const generarReporte = async () => {
     if (!seccionSeleccionada) return;
@@ -180,7 +193,19 @@ export const GenerateSectionReport = () => {
       const margenIzquierdo = 50;
       const anchoColumna1 = 40;  // Columna N°
       const anchoColumna2 = 100; // Columna CÉDULA
+      const anchoColumnaEdad = 60; // Columna EDAD (Nueva) - Increased from 40
       const anchoTotal = 500;    // Ancho total de la tabla
+      
+      // Ajustar ancho columna nombres dependiendo de si mostramos edad o no
+      // Original: anchoColumna1 + anchoColumna2 + 90 (approx text pos) -> Remaining width logic
+      // Total Width = 500.
+      // Without Age: Name Width = 500 - 40 - 100 = 360
+      // With Age: Name Width = 500 - 40 - 100 - 60 = 300
+      
+      const anchoColumnaNombres = includeAge 
+          ? anchoTotal - anchoColumna1 - anchoColumna2 - anchoColumnaEdad 
+          : anchoTotal - anchoColumna1 - anchoColumna2;
+
       const lineHeight = 15;
       const bottomMargin = 50;
       
@@ -208,7 +233,7 @@ export const GenerateSectionReport = () => {
         page.drawImage(logo3Img, { x: width - 60 - 60, y: yLogos, width: 60, height: 60 });
 
         // Título
-        const tituloTexto = `${gradoAnioSeleccionado}° ${nivelEducativoSeleccionado} Sección "${seccionSeleccionada}"`;
+        const tituloTexto = `${gradoAnioSeleccionado} ${nivelEducativoSeleccionado} Sección "${seccionSeleccionada}"`;
         const tituloWidth = helveticaBold.widthOfTextAtSize(tituloTexto, 20);
         page.drawText(tituloTexto, {
             x: width / 2 - tituloWidth / 2,
@@ -225,10 +250,19 @@ export const GenerateSectionReport = () => {
         page.drawLine({ start: { x: margenIzquierdo, y: headerY }, end: { x: margenIzquierdo + anchoTotal, y: headerY }, thickness: 1, color: rgb(0, 0, 0) });
         page.drawLine({ start: { x: margenIzquierdo, y: headerY - 25 }, end: { x: margenIzquierdo + anchoTotal, y: headerY - 25 }, thickness: 1, color: rgb(0, 0, 0) });
         
-        // Text
+        // Text Headers
         page.drawText("N°", { x: margenIzquierdo + (anchoColumna1 / 2) - 5, y: headerY - 17, size: 12, font: helveticaBold });
         page.drawText("CÉDULA", { x: margenIzquierdo + anchoColumna1 + (anchoColumna2 / 2) - 25, y: headerY - 17, size: 12, font: helveticaBold });
-        page.drawText("APELLIDOS Y NOMBRES", { x: margenIzquierdo + anchoColumna1 + anchoColumna2 + 90, y: headerY - 17, size: 12, font: helveticaBold });
+        
+        // Dynamic Header Positioning
+        const nombresHeaderX = margenIzquierdo + anchoColumna1 + anchoColumna2 + (anchoColumnaNombres / 2) - 60; // Approximate centering
+        page.drawText("APELLIDOS Y NOMBRES", { x: nombresHeaderX, y: headerY - 17, size: 12, font: helveticaBold });
+
+        if (includeAge) {
+             const edadTextWidth = helveticaBold.widthOfTextAtSize("EDAD", 12);
+             const edadHeaderX = margenIzquierdo + anchoColumna1 + anchoColumna2 + anchoColumnaNombres + (anchoColumnaEdad / 2) - (edadTextWidth / 2);
+             page.drawText("EDAD", { x: edadHeaderX, y: headerY - 17, size: 12, font: helveticaBold });
+        }
         
         return { page, currentY: headerY - 25 };
       };
@@ -238,10 +272,22 @@ export const GenerateSectionReport = () => {
       const initialHeaderY = pageHeight - 160;
 
       const drawVerticalLines = (targetPage: PDFPage, startY: number, endY: number) => {
+        // Line 1: Left
         targetPage.drawLine({ start: { x: margenIzquierdo, y: startY }, end: { x: margenIzquierdo, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
+        // Line 2: After N°
         targetPage.drawLine({ start: { x: margenIzquierdo + anchoColumna1, y: startY }, end: { x: margenIzquierdo + anchoColumna1, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
+        // Line 3: After Cedula
         targetPage.drawLine({ start: { x: margenIzquierdo + anchoColumna1 + anchoColumna2, y: startY }, end: { x: margenIzquierdo + anchoColumna1 + anchoColumna2, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
-        targetPage.drawLine({ start: { x: margenIzquierdo + anchoTotal, y: startY }, end: { x: margenIzquierdo + anchoTotal, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
+        
+        if (includeAge) {
+             // Line 4: After Nombres (Before Age)
+             targetPage.drawLine({ start: { x: margenIzquierdo + anchoColumna1 + anchoColumna2 + anchoColumnaNombres, y: startY }, end: { x: margenIzquierdo + anchoColumna1 + anchoColumna2 + anchoColumnaNombres, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
+             // Line 5: Right End (After Age)
+             targetPage.drawLine({ start: { x: margenIzquierdo + anchoTotal, y: startY }, end: { x: margenIzquierdo + anchoTotal, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
+        } else {
+             // Line 4: Right End (After Nombres)
+             targetPage.drawLine({ start: { x: margenIzquierdo + anchoTotal, y: startY }, end: { x: margenIzquierdo + anchoTotal, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
+        }
       };
 
       let pageStartY = initialHeaderY;
@@ -263,9 +309,21 @@ export const GenerateSectionReport = () => {
           const cedulaText = `${estudiante.cedula}`;
           const cedulaWidth = helveticaFont.widthOfTextAtSize(cedulaText, 12);
           
+          // Draw Row Content
           page.drawText(indexText, { x: margenIzquierdo + (anchoColumna1 / 2) - (indexWidth / 2), y: currentY - lineHeight + 5, size: 10, font: helveticaFont });
           page.drawText(cedulaText, { x: margenIzquierdo + anchoColumna1 + (anchoColumna2 / 2) - (cedulaWidth / 2), y: currentY - lineHeight + 5, size: 10, font: helveticaFont });
-          page.drawText(`${estudiante.apellidos} ${estudiante.nombres}`.toUpperCase(), { x: margenIzquierdo + anchoColumna1 + anchoColumna2 + 30, y: currentY - lineHeight + 5, size: 10, font: helveticaFont });
+          page.drawText(`${estudiante.apellidos} ${estudiante.nombres}`.toUpperCase(), { x: margenIzquierdo + anchoColumna1 + anchoColumna2 + 10, y: currentY - lineHeight + 5, size: 10, font: helveticaFont });
+
+          if (includeAge) {
+               const ageText = calculateAge(estudiante.fechaNacimiento);
+               const ageWidth = helveticaFont.widthOfTextAtSize(ageText, 12);
+               page.drawText(ageText, { 
+                   x: margenIzquierdo + anchoColumna1 + anchoColumna2 + anchoColumnaNombres + (anchoColumnaEdad / 2) - (ageWidth / 2), 
+                   y: currentY - lineHeight + 5, 
+                   size: 10, 
+                   font: helveticaFont 
+               });
+          }
 
           currentY -= lineHeight;
 
@@ -404,6 +462,14 @@ export const GenerateSectionReport = () => {
                      ))}
                    </SelectContent>
                 </Select>
+             </div>
+
+             {/* Include Age Checkbox */}
+             <div className="flex items-center space-x-2">
+                <Checkbox id="includeAge" checked={includeAge} onCheckedChange={(c) => setIncludeAge(c === true)} />
+                <Label htmlFor="includeAge" className="text-sm font-medium cursor-pointer">
+                  Incluir edad de los estudiantes
+                </Label>
              </div>
         </div>
 

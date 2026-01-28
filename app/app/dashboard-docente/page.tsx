@@ -1,12 +1,13 @@
 "use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card,  CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUser } from "@/hooks/use-user";
 import { Evaluaciones } from "@/interfaces/evaluaciones.interface";
 import { AsignacionDocenteMateria } from "@/interfaces/materias.interface";
 import { auth, getCollection } from "@/lib/data/firebase";
 import { where } from "firebase/firestore";
 import { BookOpen, Calendar, ClipboardList, Loader2, Users } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export default function DashboardDocentePage() {
@@ -160,12 +161,14 @@ export default function DashboardDocentePage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="p-4 border rounded-lg hover:bg-accent cursor-pointer transition-colors">
-            <h3 className="font-semibold mb-2">Cargar Notas</h3>
-            <p className="text-sm text-muted-foreground">
-              Registra las calificaciones de tus estudiantes
-            </p>
-          </div>
+          <Link href="/app/dashboard-docente/asistencia">
+            <div className="p-4 border rounded-lg hover:bg-accent cursor-pointer transition-colors">
+              <h3 className="font-semibold mb-2">Registrar Asistencia</h3>
+              <p className="text-sm text-muted-foreground">
+                Control diario de asistencia estudiantil
+              </p>
+            </div>
+          </Link>
           <div className="p-4 border rounded-lg hover:bg-accent cursor-pointer transition-colors">
             <h3 className="font-semibold mb-2">Ver Mis Materias</h3>
             <p className="text-sm text-muted-foreground">

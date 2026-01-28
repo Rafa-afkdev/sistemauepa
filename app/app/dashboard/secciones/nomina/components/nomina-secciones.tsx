@@ -267,7 +267,7 @@ export default function NominaSeccion() {
       });
       
       // Título con formato actualizado según imagen
-      const tituloTexto = `${gradoAnioSeleccionado}° ${nivelEducativoSeleccionado} Sección "${seccionSeleccionada}"`;
+      const tituloTexto = `${gradoAnioSeleccionado} ${nivelEducativoSeleccionado} Sección "${seccionSeleccionada}"`;
       const tituloWidth = helveticaBold.widthOfTextAtSize(tituloTexto, 20);
       page.drawText(tituloTexto, {
         x: width / 2 - tituloWidth / 2,
