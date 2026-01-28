@@ -1,7 +1,6 @@
  
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -15,18 +14,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, LoaderCircle } from "lucide-react";
-import * as z from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
-import { User } from "@/interfaces/users.interface";
-import {
-  getCollection,
-  updateDocument,
-  createUser,
-  setDocument,
-} from "@/lib/data/firebase";
 import {
   Select,
   SelectContent,
@@ -36,9 +23,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { showToast } from "nextjs-toast-notify";
+import { User } from "@/interfaces/users.interface";
+import {
+  createUser,
+  getCollection,
+  setDocument,
+  updateDocument,
+} from "@/lib/data/firebase";
 import { SendEmail } from "@/lib/email/resend";
 import { getWelcomeDocenteEmailTemplate } from "@/lib/email/templates/welcome-docente";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Check, LoaderCircle } from "lucide-react";
+import { showToast } from "nextjs-toast-notify";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 
 interface CreateUpdateDocentesProps {
   children: React.ReactNode;
@@ -208,7 +207,8 @@ export function CreateUpdateDocentes({
   };
 
   const UpdateDocente = async (data: FormValues) => {
-    const path = `users/${docenteToUpdate?.id}`;
+    if (!docenteToUpdate) return;
+    const path = `users/${docenteToUpdate.id}`;
     setIsLoading(true);
 
     try {
@@ -244,6 +244,46 @@ export function CreateUpdateDocentes({
       if (data.password && data.password.length > 0) {
         docenteData.password = data.password;
       }
+
+      // === ACTUALIZACIÓN EN AUTH (SISTEMA DE LOGIN) ===
+      // Solo si cambió el email o hay contraseña nueva
+      const emailChanged = data.email !== docenteToUpdate.email;
+      const passwordChanged = !!(data.password && data.password.length > 0);
+
+      if (emailChanged || passwordChanged) {
+        try {
+          const apiRes = await fetch("/api/admin/update-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              uid: docenteToUpdate.id,
+              email: data.email,
+              password: data.password || undefined
+            })
+          });
+
+          const apiData = await apiRes.json();
+          
+          if (!apiRes.ok) {
+             throw new Error(apiData.error || "Error al actualizar credenciales de acceso");
+          }
+          console.log("Credenciales actualizadas en Auth:", apiData);
+
+        } catch (authError: any) {
+             console.error("Error Auth Update:", authError);
+             // Si falla el auth, avisamos pero preguntamos si continuar con BD? 
+             // O mejor detenemos para evitar inconsistencia.
+             // En este caso, lanzamos error para detener y que el usuario sepa.
+             if (authError.message.includes("Faltan las credenciales")) {
+                 showToast.error("Falta configuración del servidor (Service Account) para cambiar el email/password.");
+             } else {
+                 showToast.error(`No se pudo actualizar el Login: ${authError.message}`);
+             }
+             setIsLoading(false);
+             return; 
+        }
+      }
+      // ===============================================
 
       await updateDocument(path, docenteData);
       showToast.success("El docente fue actualizado exitosamente");
@@ -376,7 +416,6 @@ export function CreateUpdateDocentes({
                     id="email"
                     type="email"
                     placeholder="ejemplo@correo.com"
-                    disabled={!!docenteToUpdate}
                   />
                   {errors.email && (
                     <p className="text-red-500 text-xs mt-1">
@@ -453,7 +492,7 @@ export function CreateUpdateDocentes({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">
               {isLoading && (
                 <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
               )}

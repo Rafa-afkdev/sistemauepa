@@ -1,35 +1,36 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState } from "react";
-import { useUser } from "@/hooks/use-user";
-import { getCollection, getDocument } from "@/lib/data/firebase";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  Users, 
-  GraduationCap, 
-  Calendar, 
-  BookOpen, 
-  UserCheck,
-  TrendingUp,
-  Clock,
-  School,
-  Activity
-} from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useUser } from "@/hooks/use-user";
 import type { Estudiantes } from "@/interfaces/estudiantes.interface";
-import type { User } from "@/interfaces/users.interface";
-import type { Secciones } from "@/interfaces/secciones.interface";
-import type { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
 import type { LapsosEscolares } from "@/interfaces/lapsos.interface";
+import type { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
+import type { Secciones } from "@/interfaces/secciones.interface";
+import type { User } from "@/interfaces/users.interface";
+import { getCollection, getCollectionCount, getDocument } from "@/lib/data/firebase";
+import {
+  Activity,
+  BookOpen,
+  Calendar,
+  Clock,
+  GraduationCap,
+  School,
+  TrendingUp,
+  UserCheck,
+  Users
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface DashboardStats {
   totalEstudiantes: number;
   estudiantesActivos: number;
   totalDocentes: number;
   docentesActivos: number;
+  totalRepresentantes: number;
   totalSecciones: number;
   periodoActivo: string;
   lapsoActivo: string;
@@ -90,6 +91,7 @@ export default function DashboardStats() {
     estudiantesActivos: 0,
     totalDocentes: 0,
     docentesActivos: 0,
+    totalRepresentantes: 0,
     totalSecciones: 0,
     periodoActivo: "No definido",
     lapsoActivo: "No definido",
@@ -117,13 +119,15 @@ export default function DashboardStats() {
         docentes,
         secciones,
         periodos,
-        lapsos
+        lapsos,
+        representantesCount
       ] = await Promise.all([
         getCollection("estudiantes") as Promise<Estudiantes[]>,
         getCollection("users") as Promise<User[]>,
         getCollection("secciones") as Promise<Secciones[]>,
         getCollection("periodos_escolares") as Promise<PeriodosEscolares[]>,
-        getCollection("lapsos") as Promise<LapsosEscolares[]>
+        getCollection("lapsos") as Promise<LapsosEscolares[]>,
+        getCollectionCount("representantes")
       ]);
 
       // Calcular estadísticas de estudiantes
@@ -194,6 +198,7 @@ export default function DashboardStats() {
         estudiantesActivos,
         totalDocentes,
         docentesActivos,
+        totalRepresentantes: representantesCount,
         totalSecciones,
         periodoActivo: periodoActivo?.periodo || "No definido",
         lapsoActivo: lapsoActivo 
@@ -299,12 +304,19 @@ export default function DashboardStats() {
             subtitle={`${stats.estudiantesActivos} activos`}
           />
           
-          <StatCard
+      <StatCard
             title="Total Docentes"
             value={stats.totalDocentes}
             icon={GraduationCap}
             loading={isLoading}
             subtitle={`${stats.docentesActivos} activos`}
+          />
+
+          <StatCard
+            title="Total Representantes"
+            value={stats.totalRepresentantes}
+            icon={Users}
+            loading={isLoading}
           />
 
           <StatCard

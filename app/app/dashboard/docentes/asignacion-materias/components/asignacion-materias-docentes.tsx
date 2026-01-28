@@ -162,6 +162,20 @@ const AsignarMateriaDialog: React.FC<AsignarMateriaDialogProps> = ({
     // Paso 3: Excluir secciones donde YA está asignada esta materia - DESHABILITADO POR UX
     // (Ya no filtramos, solo marcamos. Ver renderizado abajo)
 
+    // Paso 4: Ordenar
+    filtered.sort((a, b) => {
+        // Extraer número del grado (ej: "1er" -> 1, "5to" -> 5)
+        const gradeA = parseInt(a.grado_año.toString().replace(/\D/g, '')) || 0;
+        const gradeB = parseInt(b.grado_año.toString().replace(/\D/g, '')) || 0;
+
+        if (gradeA !== gradeB) {
+            return gradeA - gradeB;
+        }
+        
+        // Si el grado es igual, ordenar por sección (A, B, C...)
+        return a.seccion.localeCompare(b.seccion);
+    });
+
     return filtered;
   }, [secciones, materiaSeleccionada, periodoId, materiaIdSeleccionada]); // Quitamos todasLasAsignaciones de deps porque ya no filtramos
 

@@ -42,7 +42,7 @@ import {
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Timestamp, where } from "firebase/firestore";
-import { Check, ChevronsUpDown, LoaderCircle } from "lucide-react";
+import { Check, ChevronsUpDown, LoaderCircle, Search } from "lucide-react";
 import { showToast } from "nextjs-toast-notify";
 import * as React from "react";
 import { useState } from "react";
@@ -108,6 +108,46 @@ export function CreateUpdateStudents({
     direccion: ''
   });
   const [representanteExistente, setRepresentanteExistente] = useState<Representante | null>(null);
+  
+  // Estado para búsqueda de representantes
+  const [openSearchRep, setOpenSearchRep] = useState(false);
+  const [representantesList, setRepresentantesList] = useState<Representante[]>([]);
+  const [loadingReps, setLoadingReps] = useState(false);
+
+  // Función para cargar representantes para el buscador
+  const fetchRepresentantes = async () => {
+    if (representantesList.length > 0) return; // Ya están cargados
+    
+    setLoadingReps(true);
+    try {
+      const reps = await getCollection("representantes") as Representante[];
+      // Ordenar por nombres
+      reps.sort((a, b) => (a.nombres || "").localeCompare(b.nombres || ""));
+      setRepresentantesList(reps);
+    } catch (error) {
+      console.error("Error al cargar representantes:", error);
+      showToast.error("Error al cargar lista de representantes");
+    } finally {
+      setLoadingReps(false);
+    }
+  };
+
+  const handleSelectRepresentante = (rep: Representante) => {
+    setRepresentanteExistente(rep);
+    setRepresentanteData({
+      tipo_cedula: rep.tipo_cedula || 'V',
+      cedula: rep.cedula || '',
+      nombres: rep.nombres || '',
+      apellidos: rep.apellidos || '',
+      parentesco: rep.parentesco || '',
+      telefono_principal: rep.telefono_principal || '',
+      telefono_secundario: rep.telefono_secundario || '',
+      email: rep.email || '',
+      direccion: rep.direccion || ''
+    });
+    setOpenSearchRep(false);
+    showToast.info("Datos del representante cargados");
+  };
 
   const formSchema = z.object({
     tipo_cedula: z.enum(['V', 'E'], {
@@ -1429,6 +1469,69 @@ return (
                 </svg>
                 Datos del Representante
               </h3>
+
+              <div className="flex justify-end mb-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                    onClick={() => {
+                      setOpenSearchRep(true);
+                      fetchRepresentantes();
+                    }}
+                  >
+                    <Search className="mr-2 h-4 w-4" />
+                    Buscar representante existente
+                  </Button>
+              </div>
+              
+              {/* Dialogo para buscar representantes */}
+              <Dialog open={openSearchRep} onOpenChange={setOpenSearchRep}>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Buscar Representante</DialogTitle>
+                    <DialogDescription>
+                      Busca por nombre o número de cédula para autocompletar los datos.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <Command className="rounded-lg border shadow-md">
+                    <CommandInput placeholder="Escribe el nombre o cédula..." />
+                    <CommandList>
+                      <CommandEmpty>No se encontraron resultados.</CommandEmpty>
+                      <CommandGroup className="max-h-[300px] overflow-y-auto">
+                        {loadingReps ? (
+                          <div className="p-4 text-center text-sm text-muted-foreground">Cargando...</div>
+                        ) : (
+                          representantesList.map((rep) => (
+                          <CommandItem
+                            key={rep.id}
+                            value={`${rep.nombres} ${rep.apellidos} ${rep.cedula}`}
+                            onSelect={() => handleSelectRepresentante(rep)}
+                            className="cursor-pointer"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                representanteData.cedula === rep.cedula
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              )}
+                            />
+                            <div className="flex flex-col">
+                                <span className="font-medium">{rep.nombres} {rep.apellidos}</span>
+                                <div className="flex gap-2 text-xs text-muted-foreground">
+                                  <span>{rep.tipo_cedula}-{rep.cedula}</span>
+                                  <span>•</span>
+                                  <span>{rep.parentesco}</span>
+                                </div>
+                            </div>
+                          </CommandItem>
+                        )))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </DialogContent>
+              </Dialog>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Tipo y Cédula del Representante */}

@@ -1,38 +1,38 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Loader2, Plus, Trash2 } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { useUser } from "@/hooks/use-user";
 import { ContenidoCriterios, Evaluaciones } from "@/interfaces/evaluaciones.interface";
 import { LapsosEscolares } from "@/interfaces/lapsos.interface";
+import { addDocument, db, updateDocument } from "@/lib/data/firebase";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { CalendarIcon, Loader2, Plus, Trash2 } from "lucide-react";
 import { showToast } from "nextjs-toast-notify";
-import { collection, query, where, getDocs, getDoc, doc } from "firebase/firestore";
-import { db, addDocument, updateDocument } from "@/lib/data/firebase";
-import { useUser } from "@/hooks/use-user";
+import { useEffect, useState } from "react";
 
 interface CrearEvaluacionDialogProps {
   children: React.ReactNode;
@@ -361,6 +361,28 @@ export function CrearEvaluacionDialog({
 
         // Remove undefined fields
         delete evaluacionActualizada.id;
+
+        // GUARDAR HISTORIAL DE CAMBIOS
+        try {
+             const historialData = {
+                evaluacion_id: evaluacionToEdit.id,
+                docente_id: user?.uid,
+                fecha_cambio: new Date(),
+                accion: "EDICION",
+                datos_previos: {
+                    nombre_evaluacion: evaluacionToEdit.nombre_evaluacion,
+                    tipo_evaluacion: evaluacionToEdit.tipo_evaluacion,
+                    fecha: evaluacionToEdit.fecha,
+                    criterios: evaluacionToEdit.criterios,
+                    nota_definitiva: evaluacionToEdit.nota_definitiva
+                }
+             };
+             await addDocument("historial_cambios_evaluaciones", historialData);
+             console.log("Historial guardado correctamente");
+        } catch (error) {
+            console.error("Error al guardar historial de cambios:", error);
+            // No detenemos el flujo principal si falla el historial
+        }
 
         await updateDocument(`evaluaciones/${evaluacionToEdit.id}`, evaluacionActualizada);
         showToast.success("Evaluación actualizada exitosamente");
