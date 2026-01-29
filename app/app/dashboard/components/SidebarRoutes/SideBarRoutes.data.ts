@@ -1,4 +1,4 @@
-import { CalendarClock, CalendarPlus,  ClipboardEdit, FileEdit, FilePlus, FileText, LucideArrowLeftRight,  PenBoxIcon,UserPlus2, UserRoundPenIcon, UserRoundPlusIcon, UserX2Icon } from "lucide-react";
+import { CalendarClock, CalendarPlus, ClipboardEdit, FileEdit, FilePlus, FileText, LucideArrowLeftRight, PenBoxIcon, UserPlus2, UserRoundPlusIcon, Users } from "lucide-react";
 
 export const DataEstudiantesSidebar = [
     {
@@ -22,6 +22,12 @@ export const DataEstudiantesSidebar = [
         icon: FileText,
         label: "Generar Constancias",
         href: "/app/dashboard/estudiantes/constancias", 
+    },
+    
+    {
+        icon: Users,
+        label: "Mis Representantes",
+        href: "/app/dashboard/estudiantes/representantes", 
     },
 
 ]

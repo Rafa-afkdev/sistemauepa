@@ -195,6 +195,8 @@ export function TableStudentView({
                     <ConfirmDeletion
                       deleteStudent={deleteStudent}
                       student={student}
+                      hasRepresentative={!!student.id_representante}
+                      isEnrolled={!!ins}
                     >
                       <Button
                         variant="outline"
