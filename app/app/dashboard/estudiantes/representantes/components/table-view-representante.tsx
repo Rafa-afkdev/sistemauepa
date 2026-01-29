@@ -62,6 +62,7 @@ export function TableRepresentanteView({
               <TableHead>Apellidos</TableHead>
               <TableHead>Parentesco</TableHead>
               <TableHead>Teléfono</TableHead>
+              <TableHead>Email</TableHead>
               <TableHead className="text-center"># Est.</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
@@ -77,11 +78,12 @@ export function TableRepresentanteView({
                   <TableCell><Skeleton className="h-4 w-full" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-full" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-full" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-full" /></TableCell>
                 </TableRow>
               ))
             ) : representantes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                   No se encontraron representantes
                 </TableCell>
               </TableRow>
@@ -95,6 +97,7 @@ export function TableRepresentanteView({
                   <TableCell>{rep.apellidos}</TableCell>
                   <TableCell>{rep.parentesco}</TableCell>
                   <TableCell>{rep.telefono_principal}</TableCell>
+                  <TableCell>{rep.email || "-"}</TableCell>
                   <TableCell className="text-center">
                     {rep.estudiantes_ids?.length || 0}
                   </TableCell>
@@ -131,7 +134,7 @@ export function TableRepresentanteView({
           </TableBody>
           <TableFooter>
             <TableRow>
-              <TableCell colSpan={7} className="text-center">
+              <TableCell colSpan={8} className="text-center">
                 {!isLoading && representantes.length > 0 && (
                   <span className="text-sm text-muted-foreground">
                     Total: {representantes.length} representante(s)
