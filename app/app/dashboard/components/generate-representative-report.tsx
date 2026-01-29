@@ -3,13 +3,13 @@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { getCollection } from "@/lib/data/firebase";
 import { FileText, Loader2 } from "lucide-react";
@@ -27,15 +27,43 @@ export const GenerateRepresentativeReport = () => {
   const generarReporte = async () => {
     try {
       setGenerating(true);
-      const docs = (await getCollection("representantes")) as any[];
+
+      const [representantesDocs, periodosDocs, inscripcionesDocs] = await Promise.all([
+         getCollection("representantes"),
+         getCollection("periodos_escolares"),
+         getCollection("estudiantes_inscritos") // We'll filter in memory or fetch all. Better to fetch all for now or optimize later.
+      ]);
+      
+      const periodos = periodosDocs as any[];
+      const activePeriod = periodos.find(p => p.status === 'ACTIVO');
+      
+      if (!activePeriod) {
+          showToast.warning("No hay un periodo escolar activo.");
+          setGenerating(false);
+          return;
+      }
+      
+      const activeEnrollments = (inscripcionesDocs as any[]).filter(
+          ins => ins.id_periodo_escolar === activePeriod.id && ins.estado === 'activo'
+      );
+      
+      const activeStudentIds = new Set(activeEnrollments.map(ins => ins.id_estudiante));
+
+      const processedRepresentantes = (representantesDocs as any[]).map(rep => {
+          const activeStudents = (rep.estudiantes_ids || []).filter((studentId: string) => activeStudentIds.has(studentId));
+          return {
+              ...rep,
+              activeStudentCount: activeStudents.length
+          };
+      }).filter(rep => rep.activeStudentCount > 0);
 
       // Sort by Cedula
-      const representantes = docs.sort((a, b) => {
+      const representantes = processedRepresentantes.sort((a, b) => {
         return Number(a.cedula) - Number(b.cedula);
       });
 
       if (representantes.length === 0) {
-        showToast.warning("No hay representantes registrados para generar el reporte.");
+        showToast.warning("No hay representantes con estudiantes activos en el periodo actual.");
         setGenerating(false);
         return;
       }
@@ -164,7 +192,7 @@ export const GenerateRepresentativeReport = () => {
         const indexText = `${index + 1}`;
         const cedulaText = `${rep.cedula}`;
         const nombreCompleto = `${rep.apellidos} ${rep.nombres}`.toUpperCase();
-        const numEstudiantes = `${(rep.estudiantes_ids || []).length}`;
+        const numEstudiantes = `${rep.activeStudentCount}`;
 
         // Truncate name if too long to fit in column 3
         let safeName = nombreCompleto;

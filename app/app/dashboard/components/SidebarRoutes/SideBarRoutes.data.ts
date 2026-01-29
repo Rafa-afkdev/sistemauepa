@@ -6,17 +6,17 @@ export const DataEstudiantesSidebar = [
         label: "Mis Estudiantes",
         href:"/app/dashboard/estudiantes", 
     },
-    {
-        icon: UserRoundPenIcon,
-        label: "Estudiantes Inscritos",
-        href:"/app/dashboard/estudiantes/inscribir", 
-    },
+    // {
+    //     icon: UserRoundPenIcon,
+    //     label: "Estudiantes Inscritos",
+    //     href:"/app/dashboard/estudiantes/inscribir", 
+    // },
 
-    {
-        icon: UserX2Icon,
-        label: "Retirar Estudiante",
-        href:"/app/dashboard/estudiantes/retirar", 
-    },  
+    // {
+    //     icon: UserX2Icon,
+    //     label: "Retirar Estudiante",
+    //     href:"/app/dashboard/estudiantes/retirar", 
+    // },  
     
     {
         icon: FileText,
