@@ -16,7 +16,23 @@ export const GenerateStudentReport = () => {
   const generarReporteEstudiantes = async () => {
     try {
       setLoading(true);
-      const docs = (await getCollection("estudiantes")) as Estudiantes[];
+      setLoading(true);
+      
+      // 1. Fetch Students and Enrollments
+      const [estudiantesDocs, inscripcionesDocs] = await Promise.all([
+        getCollection("estudiantes") as Promise<Estudiantes[]>,
+        getCollection("estudiantes_inscritos") as Promise<any[]>
+      ]);
+
+      // 2. Filter Active Enrollments (Status: "activo")
+      const activeStudentIds = new Set(
+        inscripcionesDocs
+          .filter(i => (i.estado || "").toLowerCase() === "activo")
+          .map(i => i.id_estudiante)
+      );
+
+      // 3. Filter Students Collection by Active IDs
+      const docs = estudiantesDocs.filter(est => activeStudentIds.has(est.id));
 
       // Ordenar por cédula en el cliente
       const allEstudiantes = docs.sort((a, b) => {

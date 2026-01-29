@@ -255,9 +255,32 @@ export default function HistorialCambioSeccionPage() {
                       }
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                        {item.seccion_anterior_nombre}
-                      </Badge>
+                      {(() => {
+                        if (item.seccion_anterior_nombre === "NUEVO INGRESO") {
+                          // Buscar si hay un retiro previo para este estudiante
+                          const retiroPrevio = historialFiltrado
+                            .slice(index + 1)
+                            .find(h => 
+                              h.id_estudiante === item.id_estudiante && 
+                              h.seccion_nueva_nombre === "RETIRADO"
+                            );
+                          
+                          if (retiroPrevio) {
+                            // Extraer solo la sección del registro anterior
+                            // asumimos que seccion_anterior_nombre es "Grado - Seccion"
+                            return (
+                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                RETIRADO ({retiroPrevio.seccion_anterior_nombre})
+                              </Badge>
+                            );
+                          }
+                        }
+                        return (
+                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                            {item.seccion_anterior_nombre}
+                          </Badge>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <ArrowRight className="h-4 w-4 text-muted-foreground" />

@@ -3,6 +3,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -12,19 +13,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LoaderCircle, UserX2 } from "lucide-react";
-import { useState, useEffect } from "react";
-import * as React from "react";
-import { InscripcionSeccion, Secciones } from "@/interfaces/secciones.interface";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
 import { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
-import { where } from "firebase/firestore";
-import { getCollection } from "@/lib/data/firebase";
+import { InscripcionSeccion, Secciones } from "@/interfaces/secciones.interface";
+import { db, getCollection } from "@/lib/data/firebase";
+import { addDoc, collection, Timestamp, where } from "firebase/firestore";
+import { LoaderCircle, UserX2 } from "lucide-react";
 import { showToast } from "nextjs-toast-notify";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+import * as React from "react";
+import { useEffect, useState } from "react";
 
 interface RetirarEstudianteProps {
   children: React.ReactNode;
@@ -149,6 +149,31 @@ export function RetirarEstudiante({
 
     setIsLoading(true);
     try {
+      // 1. Log Withdrawal History
+      const historyPromises = selectedInscripciones.map(async (inscripcionId) => {
+        const inscripcion = inscripcionesActivas.find(i => i.id === inscripcionId);
+        if (!inscripcion) return;
+
+        const seccion = seccionesMap[inscripcion.id_seccion];
+        const seccionNombre = seccion 
+          ? `${seccion.grado_año}° "${seccion.seccion}" - ${seccion.nivel_educativo}`
+          : "Desconocida";
+
+        await addDoc(collection(db, "historial_cambios_seccion"), {
+          id_estudiante: inscripcion.id_estudiante,
+          id_periodo_escolar: inscripcion.id_periodo_escolar,
+          id_seccion_anterior: inscripcion.id_seccion,
+          seccion_anterior_nombre: seccionNombre,
+          id_seccion_nueva: null,
+          seccion_nueva_nombre: "RETIRADO",
+          fecha_cambio: Timestamp.now(),
+          motivo: "Retiro voluntario/administrativo"
+        });
+      });
+
+      await Promise.all(historyPromises);
+
+      // 2. Perform Withdrawal
       await retirarEstudiantes(selectedInscripciones);
       await getInscripcionesActivas();
       setOpen(false);

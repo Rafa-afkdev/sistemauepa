@@ -129,16 +129,14 @@ export default function DashboardStats() {
         secciones,
         periodos,
         lapsos,
-        representantesCount,
-        inscripciones
+        representantesCount
       ] = await Promise.all([
         getCollection("estudiantes") as Promise<Estudiantes[]>,
         getCollection("users") as Promise<User[]>,
         getCollection("secciones") as Promise<Secciones[]>,
         getCollection("periodos_escolares") as Promise<PeriodosEscolares[]>,
         getCollection("lapsos") as Promise<LapsosEscolares[]>,
-        getCollectionCount("representantes"),
-        getCollection("estudiantes_inscritos") as Promise<any[]>
+        getCollectionCount("representantes")
       ]);
 
       // Encontrar periodo activo
@@ -148,12 +146,19 @@ export default function DashboardStats() {
       const seccionesActivas = periodoActivo 
         ? secciones.filter(s => s.id_periodo_escolar === periodoActivo.id) 
         : [];
+      
+      // Calcular estudiantes inscritos (Unique IDs from active sections)
+      const uniqueStudentIds = new Set<string>();
+      seccionesActivas.forEach(s => {
+        if (Array.isArray(s.estudiantes_ids)) {
+           s.estudiantes_ids.forEach(id => uniqueStudentIds.add(id));
+        }
+      });
+      const estudiantesInscritosCount = uniqueStudentIds.size;
 
       // Calcular estadísticas de estudiantes
       const totalEstudiantes = estudiantes.length;
-      const estudiantesActivos = inscripciones.filter(
-        (i) => (i.estado || "").toLowerCase() === "activo"
-      ).length;
+      const estudiantesActivos = estudiantesInscritosCount; // Real unique enrolled count
 
       // Calcular estadísticas de docentes
       const docentesList = docentes.filter((d) => d.rol === "docente");
@@ -188,11 +193,8 @@ export default function DashboardStats() {
         (sum, s) => sum + (s.limite_estudiantes || 0),
         0
       );
-      const estudiantesInscritos = seccionesActivas.reduce(
-        (sum, s) => sum + (s.estudiantes_inscritos || 0),
-        0
-      );
-      const cuposDisponibles = cuposTotales - estudiantesInscritos;
+      // Reusing previous variable
+      const cuposDisponibles = cuposTotales - estudiantesInscritosCount;
       
       // Encontrar lapso activo
       const lapsoActivo = lapsos.find((l) => l.status === "ACTIVO");
@@ -317,7 +319,7 @@ export default function DashboardStats() {
             value={stats.totalEstudiantes}
             icon={Users}
             loading={isLoading}
-            subtitle={`${stats.estudiantesActivos} activos`}
+            subtitle={`${stats.estudiantesActivos} inscritos`}
             action={
               <GenerateStudentReport />
             }

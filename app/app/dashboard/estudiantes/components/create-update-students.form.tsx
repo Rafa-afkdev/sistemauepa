@@ -83,6 +83,7 @@ export function CreateUpdateStudents({
   const [selectedSeccion, setSelectedSeccion] = useState<string>("");
   const [pendingSeccion, setPendingSeccion] = useState<string>(""); // Sección pendiente de selección
   const [tipoEstudiante, setTipoEstudiante] = useState<'nuevo' | 'regular'>('nuevo');
+  const [statusInscripcion, setStatusInscripcion] = useState<string>("activo");
   const [inscripcionActual, setInscripcionActual] = useState<InscripcionSeccion | null>(null);
 
   // Estados para datos del representante
@@ -272,11 +273,12 @@ export function CreateUpdateStudents({
             const inscripciones = (await getCollection("estudiantes_inscritos", [
               where("id_estudiante", "==", studentToUpdate.id),
               where("id_periodo_escolar", "==", studentToUpdate.periodo_escolar_actual),
-              where("estado", "==", "activo"),
+
             ])) as InscripcionSeccion[];
 
             if (inscripciones.length > 0) {
               setInscripcionActual(inscripciones[0]);
+              setStatusInscripcion(inscripciones[0].estado || "activo");
             }
           } catch (error) {
             console.error("Error al cargar inscripción actual:", error);
@@ -619,10 +621,24 @@ export function CreateUpdateStudents({
         nivel_educativo: seccion.nivel_educativo,
         id_periodo_escolar: selectedPeriodo,
         fecha_inscripcion: Timestamp.now(),
-        estado: "activo",
+        estado: statusInscripcion as any,
       };
       
       await addDocument("estudiantes_inscritos", inscripcion);
+
+      // Guardar historial de NUEVO INGRESO
+      const seccionHistorial = (await getDocument(`secciones/${selectedSeccion}`)) as Secciones; 
+      const historialNuevo: Partial<HistorialCambioSeccion> = {
+        id_estudiante: estudianteId,
+        id_periodo_escolar: selectedPeriodo,
+        id_seccion_anterior: "NUEVO_INGRESO",
+        seccion_anterior_nombre: "NUEVO INGRESO",
+        id_seccion_nueva: selectedSeccion,
+        seccion_nueva_nombre: `${seccion.grado_año}° "${seccion.seccion}" - ${seccion.nivel_educativo}`,
+        fecha_cambio: Timestamp.now(),
+        motivo: "Inscripción inicial"
+      };
+      await addDocument("historial_cambios_seccion", historialNuevo);
 
       // Actualizar contadores de la sección
       const nuevosInscritos = seccion.estudiantes_inscritos + 1;
@@ -675,7 +691,7 @@ export function CreateUpdateStudents({
       const inscripcionActualBD = (await getCollection("estudiantes_inscritos", [
         where("id_estudiante", "==", studentToUpdate?.id),
         where("id_periodo_escolar", "==", selectedPeriodo),
-        where("estado", "==", "activo"),
+
       ])) as InscripcionSeccion[];
 
       // CASO 1: Ya está inscrito en este periodo
@@ -683,9 +699,65 @@ export function CreateUpdateStudents({
         const seccionAntiguaId = inscripcionActualBD[0].id_seccion;
 
         // No permitir reinscribir en la misma sección
+        // No permitir reinscribir en la misma sección, PERO si actualizar estatus
         if (seccionAntiguaId === selectedSeccion) {
-          // Está en la misma sección, solo actualizar datos del estudiante sin cambios de inscripción
-          showToast.info("El estudiante ya está inscrito en esta sección. Se actualizaron solo los datos personales.");
+          // Si el estatus es diferente, actualizarlo
+          if (inscripcionActualBD[0].estado !== statusInscripcion) {
+             await updateDocument(`estudiantes_inscritos/${inscripcionActualBD[0].id}`, {
+               estado: statusInscripcion as any,
+               updatedAt: Timestamp.now(),
+             });
+             
+             // Registrar historial si cambia el estatus
+             const seccionActual = (await getDocument(`secciones/${selectedSeccion}`)) as Secciones;
+             
+             let nuevaSeccionNombre = `${seccionActual.grado_año}° ${seccionActual.nivel_educativo} - ${seccionActual.seccion}`;
+             let nuevaSeccionId = selectedSeccion;
+             
+             if (statusInscripcion === 'retirado') {
+                 nuevaSeccionNombre = "RETIRADO";
+                 nuevaSeccionId = null as any;
+             }
+
+             await addDocument("historial_cambios_seccion", {
+                id_estudiante: studentToUpdate?.id!,
+                id_periodo_escolar: selectedPeriodo,
+                id_seccion_anterior: seccionAntiguaId,
+                seccion_anterior_nombre: `${seccionActual.grado_año}° ${seccionActual.nivel_educativo} - ${seccionActual.seccion}`,
+                id_seccion_nueva: nuevaSeccionId,
+                seccion_nueva_nombre: nuevaSeccionNombre,
+                fecha_cambio: Timestamp.now(),
+                motivo: `Cambio de estatus: ${inscripcionActualBD[0].estado} -> ${statusInscripcion}`
+             });
+
+             // ACTUALIZAR CONTADORES DE LA SECCION
+             if (statusInscripcion === 'retirado') {
+                 // Si se retira, sacarlo de la sección
+                 const nuevosEstudiantesIds = (seccionActual.estudiantes_ids || []).filter(id => id !== studentToUpdate?.id);
+                 const nuevaCantidad = Math.max(0, seccionActual.estudiantes_inscritos - 1);
+                 
+                 await updateDocument(`secciones/${selectedSeccion}`, {
+                    estudiantes_ids: nuevosEstudiantesIds,
+                    estudiantes_inscritos: nuevaCantidad
+                 });
+             } else if (statusInscripcion === 'activo') {
+                 // Si se reactiva, volverlo a meter (si no estaba)
+                 const idsActuales = seccionActual.estudiantes_ids || [];
+                 if (!idsActuales.includes(studentToUpdate?.id!)) {
+                     const nuevosEstudiantesIds = [...idsActuales, studentToUpdate?.id!];
+                     const nuevaCantidad = seccionActual.estudiantes_inscritos + 1;
+
+                     await updateDocument(`secciones/${selectedSeccion}`, {
+                        estudiantes_ids: nuevosEstudiantesIds,
+                        estudiantes_inscritos: nuevaCantidad
+                     });
+                 }
+             }
+
+             showToast.success("Estatus de inscripción actualizado");
+          }
+          // Está en la misma sección, solo actualizar datos del estudiante
+          showToast.info("Datos del estudiante actualizados.");
         } else {
 
         // Verificar capacidad de nueva sección
@@ -707,14 +779,8 @@ export function CreateUpdateStudents({
         }
 
         const seccionAntigua = (await getDocument(`secciones/${seccionAntiguaId}`)) as Secciones;
-
-        // Actualizar inscripción
-        await updateDocument(`estudiantes_inscritos/${inscripcionActualBD[0].id}`, {
-          id_seccion: selectedSeccion,
-          nivel_educativo: nuevaSeccion.nivel_educativo,
-        });
-
-        // RESTAR de sección antigua
+        
+        // 1. ELIMINAR de sección antigua
         const nuevosInscritosAntigua = Math.max(0, seccionAntigua.estudiantes_inscritos - 1);
         const estudiantesIdsAntigua = (seccionAntigua.estudiantes_ids || [])
           .filter(id => id !== studentToUpdate?.id);
@@ -724,7 +790,7 @@ export function CreateUpdateStudents({
           estudiantes_ids: estudiantesIdsAntigua,
         });
 
-        // SUMAR a sección nueva
+        // 2. SUMAR a sección nueva
         const nuevosInscritosNueva = nuevaSeccion.estudiantes_inscritos + 1;
         const estudiantesIdsNueva = [
           ...(nuevaSeccion.estudiantes_ids || []),
@@ -734,6 +800,13 @@ export function CreateUpdateStudents({
         await updateDocument(`secciones/${selectedSeccion}`, {
           estudiantes_inscritos: nuevosInscritosNueva,
           estudiantes_ids: estudiantesIdsNueva,
+        });
+
+        // 3. ACTUALIZAR INSCRIPCIÓN (Solo si los pasos anteriores fueron exitosos)
+        await updateDocument(`estudiantes_inscritos/${inscripcionActualBD[0].id}`, {
+          id_seccion: selectedSeccion,
+          nivel_educativo: nuevaSeccion.nivel_educativo,
+          estado: 'activo',
         });
 
         // Guardar historial de cambio de sección
@@ -799,6 +872,20 @@ export function CreateUpdateStudents({
           estudiantes_inscritos: nuevosInscritos,
           estudiantes_ids: estudiantesIds,
         });
+
+        // Guardar historial de NUEVO INGRESO (si no tenia inscripcion previa en este periodo)
+        const historialNuevo: Partial<HistorialCambioSeccion> = {
+            id_estudiante: studentToUpdate?.id!,
+            id_periodo_escolar: selectedPeriodo,
+            id_seccion_anterior: "NUEVO_INGRESO",
+            seccion_anterior_nombre: "NUEVO INGRESO",
+            id_seccion_nueva: selectedSeccion,
+            seccion_nueva_nombre: `${seccion.grado_año}° "${seccion.seccion}" - ${seccion.nivel_educativo}`,
+            fecha_cambio: Timestamp.now(),
+            motivo: "Inscripción en periodo (sin registro previo)"
+        };
+        await addDocument("historial_cambios_seccion", historialNuevo);
+
 
         showToast.success("Estudiante inscrito exitosamente");
       }
@@ -1033,6 +1120,30 @@ return (
                         : "Selecciona un nivel académico"}
                     </p>
                   )}
+                </div>
+
+                {/* Estatus de Inscripción */}
+                <div>
+                  <Label htmlFor="status_inscripcion" className="mb-2 block">
+                    Estatus de Inscripción
+                  </Label>
+                  <Select 
+                    value={statusInscripcion} 
+                    onValueChange={setStatusInscripcion}
+                    disabled={!studentToUpdate || !inscripcionActual}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona estatus" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Estatus</SelectLabel>
+                        <SelectItem value="activo">Activo</SelectItem>
+                        <SelectItem value="retirado">Retirado</SelectItem>
+                        <SelectItem value="finalizado">Finalizado</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

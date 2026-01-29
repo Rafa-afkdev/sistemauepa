@@ -31,7 +31,7 @@ export interface InscripcionSeccion {
     nivel_educativo: string;
     id_periodo_escolar: string;
     fecha_inscripcion: Timestamp;
-    estado: 'activo' | 'retirado' | 'transferido' | 'promovido';
+    estado: 'activo' | 'retirado' | 'transferido' | 'promovido' | 'finalizado';
     observaciones?: string;
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
