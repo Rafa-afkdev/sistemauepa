@@ -35,7 +35,8 @@ export function ConfirmDeletionRepresentante({
             <AlertTriangle className="h-5 w-5 text-destructive" />
             ¿Eliminar Representante?
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-2">
+          <AlertDialogDescription asChild>
+            <div className="space-y-2">
             <p>
               ¿Está seguro de que desea eliminar a{" "}
               <span className="font-semibold">
@@ -57,6 +58,7 @@ export function ConfirmDeletionRepresentante({
               </div>
             )}
             <p className="text-muted-foreground mt-2">Esta acción no se puede deshacer.</p>
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
