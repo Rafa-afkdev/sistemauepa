@@ -1,30 +1,29 @@
 "use client";
 
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
 import { Representante } from "@/interfaces/representante.interface";
-import { deleteDocument, getCollection, getDocument, updateDocument } from "@/lib/data/firebase";
-import { where } from "firebase/firestore";
-import { Mail, MapPin, Phone, User, Users } from "lucide-react";
+import { getCollection, updateDocument } from "@/lib/data/firebase";
+import { Mail, MapPin, Phone, Trash2, User, Users } from "lucide-react";
 import { showToast } from "nextjs-toast-notify";
 import { ReactNode, useEffect, useState } from "react";
 
@@ -75,38 +74,7 @@ export function VerRepresentanteDialog({
     try {
       const estudianteId = studentToDelete.id;
       
-      // 1. Eliminar inscripciones del estudiante
-      const inscripciones = await getCollection("estudiantes_inscritos", [
-        where("id_estudiante", "==", estudianteId)
-      ]);
-      
-      for (const inscripcion of inscripciones) {
-        if (inscripcion.id) {
-          await deleteDocument(`estudiantes_inscritos/${inscripcion.id}`);
-        }
-      }
-
-      // 2. Actualizar la sección (remover del array y decrementar contador)
-      if (studentToDelete.seccion_actual) {
-        try {
-          const seccion = await getDocument(`secciones/${studentToDelete.seccion_actual}`) as any;
-          if (seccion) {
-            const nuevosEstudiantesIds = (seccion.estudiantes_ids || []).filter(
-              (id: string) => id !== estudianteId
-            );
-            const nuevaCantidad = Math.max(0, (seccion.estudiantes_inscritos || 0) - 1);
-            
-            await updateDocument(`secciones/${studentToDelete.seccion_actual}`, {
-              estudiantes_ids: nuevosEstudiantesIds,
-              estudiantes_inscritos: nuevaCantidad,
-            });
-          }
-        } catch (error) {
-          console.error("Error actualizando sección:", error);
-        }
-      }
-
-      // 3. Actualizar representante (remover del array)
+      // Actualizar representante (remover estudiante del array)
       if (representante.id) {
         const nuevosEstudiantesIds = (representante.estudiantes_ids || []).filter(
           id => id !== estudianteId
@@ -117,21 +85,7 @@ export function VerRepresentanteDialog({
         });
       }
 
-      // 4. Eliminar historial de cambios de sección
-      const historial = await getCollection("historial_cambios_seccion", [
-        where("id_estudiante", "==", estudianteId)
-      ]);
-      
-      for (const cambio of historial) {
-        if (cambio.id) {
-          await deleteDocument(`historial_cambios_seccion/${cambio.id}`);
-        }
-      }
-
-      // 5. Eliminar el estudiante
-      await deleteDocument(`estudiantes/${estudianteId}`);
-
-      showToast.success("Estudiante eliminado exitosamente");
+      showToast.success("Estudiante desvinculado del representante exitosamente");
       
       // Recargar lista de estudiantes
       await loadEstudiantes();
@@ -139,8 +93,8 @@ export function VerRepresentanteDialog({
       setStudentToDelete(null);
       
     } catch (error: any) {
-      console.error("Error eliminando estudiante:", error);
-      showToast.error(error.message || "Error al eliminar estudiante");
+      console.error("Error desvinculando estudiante:", error);
+      showToast.error(error.message || "Error al desvincular estudiante");
     } finally {
       setDeleting(false);
     }
@@ -258,15 +212,14 @@ export function VerRepresentanteDialog({
                         </p>
                         <p className="text-xs text-muted-foreground">CI: {est.cedula}</p>
                       </div>
-                      {/* Botón de eliminar - comentado temporalmente */}
-                      {/* <Button
+                      <Button
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-destructive hover:text-destructive"
                         onClick={() => handleDeleteClick(est)}
                       >
                         <Trash2 className="h-4 w-4" />
-                      </Button> */}
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -290,11 +243,11 @@ export function VerRepresentanteDialog({
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás completamente seguro?</AlertDialogTitle>
+            <AlertDialogTitle>¿Desvincular estudiante del representante?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
                 <div>
-                  Esta acción <strong>eliminará permanentemente</strong> al estudiante:
+                  Esta acción <strong>desvinculará</strong> al estudiante del representante:
                 </div>
                 {studentToDelete && (
                   <div className="p-3 bg-muted rounded-md my-2">
@@ -304,10 +257,10 @@ export function VerRepresentanteDialog({
                     <p className="text-sm">CI: {studentToDelete.cedula}</p>
                   </div>
                 )}
-                <div className="text-destructive font-medium">
-                  Se eliminarán todos sus datos: inscripciones, historial y referencias en secciones.
+                <div className="text-muted-foreground">
+                  El estudiante será removido de la lista de este representante, pero permanecerá en el sistema.
                 </div>
-                <div>Esta acción no se puede deshacer.</div>
+                <div className="text-sm text-muted-foreground">Podrás asignarle un nuevo representante más tarde.</div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -318,7 +271,7 @@ export function VerRepresentanteDialog({
               disabled={deleting}
               className="bg-destructive hover:bg-destructive/90"
             >
-              {deleting ? "Eliminando..." : "Sí, eliminar estudiante"}
+              {deleting ? "Desvinculando..." : "Sí, desvincular estudiante"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
