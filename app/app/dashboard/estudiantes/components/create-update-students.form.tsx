@@ -467,9 +467,39 @@ export function CreateUpdateStudents({
   };
 
   // Helper para guardar o actualizar representante
-  const guardarRepresentante = async (estudianteId: string): Promise<string | null> => {
+  const guardarRepresentante = async (estudianteId: string, representanteAnteriorId?: string): Promise<string | null> => {
     try {
-      // Buscar si ya existe un representante con esta cédula
+      // PASO 1: Si hay un representante anterior y es diferente al nuevo, eliminar el estudiante de su lista
+      if (representanteAnteriorId) {
+        // Buscar si el nuevo representante es diferente al anterior
+        const representantesExistentes = await getCollection("representantes", [
+          where("cedula", "==", representanteData.cedula),
+        ]) as Representante[];
+
+        const nuevoRepresentanteId = representantesExistentes.length > 0 ? representantesExistentes[0].id : null;
+        
+        // Solo eliminar del anterior si es diferente al nuevo
+        if (nuevoRepresentanteId !== representanteAnteriorId) {
+          try {
+            const representanteAnterior = await getDocument(`representantes/${representanteAnteriorId}`) as Representante;
+            if (representanteAnterior) {
+              const estudiantesIdsActualizados = (representanteAnterior.estudiantes_ids || []).filter(
+                id => id !== estudianteId
+              );
+              
+              await updateDocument(`representantes/${representanteAnteriorId}`, {
+                estudiantes_ids: estudiantesIdsActualizados,
+                updatedAt: Timestamp.now(),
+              });
+            }
+          } catch (error) {
+            console.error("Error al actualizar representante anterior:", error);
+            // Continuar aunque falle, para no bloquear la actualización
+          }
+        }
+      }
+
+      // PASO 2: Buscar si ya existe un representante con esta cédula
       const representantesExistentes = await getCollection("representantes", [
         where("cedula", "==", representanteData.cedula),
       ]) as Representante[];
@@ -911,7 +941,11 @@ export function CreateUpdateStudents({
       await updateDocument(path, normalizedStudent);
 
       // Guardar/actualizar representante y vincular con estudiante
-      const representanteId = await guardarRepresentante(studentToUpdate?.id!);
+      // Pasar el ID del representante anterior para que lo elimine de su lista si es diferente
+      const representanteId = await guardarRepresentante(
+        studentToUpdate?.id!, 
+        studentToUpdate?.id_representante
+      );
       if (representanteId && representanteId !== studentToUpdate?.id_representante) {
         await updateDocument(path, {
           id_representante: representanteId,

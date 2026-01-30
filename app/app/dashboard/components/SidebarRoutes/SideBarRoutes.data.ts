@@ -48,6 +48,11 @@ export const DataDocenteSidebar = [
         label: "Asignar Materias",
         href: "/app/dashboard/docentes/asignacion-materias", 
     },
+    {
+        icon: CalendarClock,
+        label: "Horarios",
+        href: "/app/dashboard/docentes/asignacion-horarios", 
+    },
 
 ]
 export const DataSeccionesSidebar = [

@@ -15,13 +15,37 @@ import { Secciones } from "@/interfaces/secciones.interface";
 import { Docente } from "@/interfaces/users.interface";
 
 // UI Components
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Clock, Loader2, Plus, User as UserIcon, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Calendar, Check, ChevronsUpDown, Clock, Loader2, Plus, User as UserIcon, X } from "lucide-react";
 
 const DAYS = [
   { id: 1, name: "Lunes" },
@@ -30,6 +54,33 @@ const DAYS = [
   { id: 4, name: "Jueves" },
   { id: 5, name: "Viernes" },
 ];
+
+// Helper: Convert 24h (HH:mm) to 12h (hh:mm AM/PM)
+const formatTime12h = (time24h: string) => {
+  if (!time24h) return "";
+  const [hours, minutes] = time24h.split(":").map(Number);
+  const period = hours >= 12 ? "PM" : "AM";
+  const hours12 = hours % 12 || 12;
+  return `${hours12.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")} ${period}`;
+};
+
+// Helper: Convert 12h (hh:mm AM/PM) to 24h (HH:mm) for input
+const formatTime24h = (time12h: string) => {
+  if (!time12h) return "";
+  // Check if already 24h format (simple check: no AM/PM)
+  if (!time12h.toUpperCase().includes("M")) return time12h;
+
+  const [time, modifier] = time12h.split(" ");
+  let [hours, minutes] = time.split(":").map(Number);
+
+  if (hours === 12) {
+    hours = 0;
+  }
+  if (modifier.toUpperCase() === "PM") {
+    hours = hours + 12;
+  }
+  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+};
 
 const BLOCKS = Array.from({ length: 9 }, (_, i) => i + 1); // 9 bloques
 
@@ -53,11 +104,16 @@ export default function AsignacionHorarios() {
   
   // UI State
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [openCombobox, setOpenCombobox] = useState(false);
   const [selectedCell, setSelectedCell] = useState<{dia: number, bloque: number} | null>(null);
   const [selectedAsignacionId, setSelectedAsignacionId] = useState<string>("");
   const [selectedSeccionId, setSelectedSeccionId] = useState<string>(""); // Sub-selection from assignment
   const [horaInicio, setHoraInicio] = useState<string>("");
   const [horaFin, setHoraFin] = useState<string>("");
+  
+  // Delete Logic
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
   // Initial Load
   useEffect(() => {
@@ -139,8 +195,8 @@ export default function AsignacionHorarios() {
     if (existing) {
        // Por ahora sobreescribimos
        // Podríamos cargar existing.hora_inicio en setHoraInicio, etc.
-       setHoraInicio(existing.hora_inicio || "");
-       setHoraFin(existing.hora_fin || "");
+       setHoraInicio(formatTime24h(existing.hora_inicio || ""));
+       setHoraFin(formatTime24h(existing.hora_fin || ""));
     } else {
        setHoraInicio("");
        setHoraFin("");
@@ -166,6 +222,26 @@ export default function AsignacionHorarios() {
     
     setLoading(true);
     try {
+        // VALIDATION: Check for collision (Same Section, Period, Day, Block)
+        const collisions = await getCollection("horarios_clase", [
+            where("id_periodo_escolar", "==", selectedPeriodoId),
+            where("dia", "==", selectedCell.dia),
+            where("bloque_horario", "==", selectedCell.bloque),
+            where("id_seccion", "==", selectedSeccionId)
+        ]);
+
+        const otherTeacherCollision = (collisions as HorarioClase[]).find(h => h.id_docente !== selectedDocenteId);
+
+        if (otherTeacherCollision) {
+            const teacherName = docentes.find(d => d.id === otherTeacherCollision.id_docente);
+            const fullName = teacherName ? `${teacherName.name} ${teacherName.apellidos}` : "Otro docente";
+            const materiaName = otherTeacherCollision.nombre_materia || "Materia desconocida";
+            
+            showToast.error(`Conflicto: ${fullName} ya tiene asignada ${materiaName} en esta sección y horario.`);
+            setLoading(false);
+            return;
+        }
+
         const asignacion = asignaciones.find(a => a.id === selectedAsignacionId);
         const materia = materias.find(m => m.id === asignacion?.materia_id);
         const seccion = secciones.find(s => s.id === selectedSeccionId);
@@ -184,8 +260,8 @@ export default function AsignacionHorarios() {
             id_seccion: selectedSeccionId,
             nombre_materia: materia?.nombre,
             nombre_seccion: seccion ? `${seccion.grado_año}° ${seccion.seccion}` : "Sección desconocida",
-            hora_inicio: horaInicio,
-            hora_fin: horaFin,
+            hora_inicio: formatTime12h(horaInicio),
+            hora_fin: formatTime12h(horaFin),
             updatedAt: Timestamp.now()
         };
 
@@ -216,6 +292,24 @@ export default function AsignacionHorarios() {
     }
   };
 
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+
+    setLoading(true);
+    try {
+        await deleteDocument(`horarios_clase/${itemToDelete}`);
+        setHorarios(prev => prev.filter(h => h.id !== itemToDelete));
+        showToast.success("Bloque eliminado");
+    } catch (error) {
+        console.error(error);
+        showToast.error("Error al eliminar");
+    } finally {
+        setLoading(false);
+        setDeleteDialogOpen(false);
+        setItemToDelete(null);
+    }
+  };
+  
   // ... (delete logic unchanged)
 
   // Helper to render cell content
@@ -243,15 +337,8 @@ export default function AsignacionHorarios() {
                  <button 
                     onClick={(e) => {
                         e.stopPropagation();
-                        // handleDeleteBlock(entry.id!); // Use existing logic
-                         if(confirm("¿Eliminar bloque de horario?")) {
-                              setLoading(true);
-                              deleteDocument(`horarios_clase/${entry.id}`).then(() => {
-                                  setHorarios(prev => prev.filter(h => h.id !== entry.id));
-                                  showToast.success("Bloque eliminado");
-                                  setLoading(false);
-                              });
-                         }
+                        setItemToDelete(entry.id!);
+                        setDeleteDialogOpen(true);
                     }}
                     className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-100 rounded-full transition-all"
                  >
@@ -293,18 +380,54 @@ export default function AsignacionHorarios() {
                     <Label className="flex items-center gap-2">
                         <UserIcon className="w-4 h-4" /> Docente
                     </Label>
-                    <Select value={selectedDocenteId} onValueChange={setSelectedDocenteId}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Seleccione un docente" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {docentes.map(d => (
-                                <SelectItem key={d.id} value={d.id}>
-                                    {d.name} {d.apellidos}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={openCombobox}
+                                className="w-full justify-between font-normal"
+                            >
+                                {selectedDocenteId
+                                    ? docentes.find((d) => d.id === selectedDocenteId)
+                                        ? `${docentes.find((d) => d.id === selectedDocenteId)?.name} ${docentes.find((d) => d.id === selectedDocenteId)?.apellidos}`
+                                        : "Seleccione un docente"
+                                    : "Seleccione un docente"}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-0" align="start">
+                            <Command>
+                                <CommandInput placeholder="Buscar por nombre o cédula..." />
+                                <CommandList>
+                                    <CommandEmpty>No se encontró docente.</CommandEmpty>
+                                    <CommandGroup>
+                                        {docentes.map((d) => (
+                                            <CommandItem
+                                                key={d.id}
+                                                value={`${d.name} ${d.apellidos} ${d.cedula}`}
+                                                onSelect={() => {
+                                                    setSelectedDocenteId(d.id === selectedDocenteId ? "" : d.id);
+                                                    setOpenCombobox(false);
+                                                }}
+                                            >
+                                                <Check
+                                                    className={cn(
+                                                        "mr-2 h-4 w-4",
+                                                        selectedDocenteId === d.id ? "opacity-100" : "opacity-0"
+                                                    )}
+                                                />
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">{d.name} {d.apellidos}</span>
+                                                    <span className="text-xs text-muted-foreground">CI: {d.cedula}</span>
+                                                </div>
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
                 </div>
                 
                 <div className="space-y-2">
@@ -443,6 +566,8 @@ export default function AsignacionHorarios() {
                                   type="time" 
                                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                   value={horaInicio}
+                                  min="07:00"
+                                  max="18:00"
                                   onChange={(e) => setHoraInicio(e.target.value)}
                               />
                           </div>
@@ -454,6 +579,8 @@ export default function AsignacionHorarios() {
                                   type="time" 
                                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                   value={horaFin}
+                                  min="07:00"
+                                  max="18:00"
                                   onChange={(e) => setHoraFin(e.target.value)}
                               />
                           </div>
@@ -473,6 +600,24 @@ export default function AsignacionHorarios() {
               </DialogFooter>
           </DialogContent>
       </Dialog>
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Esto eliminará permanentemente la asignación de este horario.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
