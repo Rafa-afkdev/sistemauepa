@@ -62,6 +62,9 @@ export default function AsistenciaPage() {
   const [gradosAnios, setGradosAnios] = useState<string[]>([]);
   const [seccionesDisponibles, setSeccionesDisponibles] = useState<any[]>([]);
 
+  // Schedule-based day validation
+  const [allowedDays, setAllowedDays] = useState<number[]>([]); // Days (1-5) when teacher teaches this section/subject
+
   // Students and Attendance State
   const [estudiantes, setEstudiantes] = useState<any[]>([]);
   const [asistencia, setAsistencia] = useState<{ [key: string]: { estado: string; observacion: string } }>({});
@@ -206,7 +209,41 @@ export default function AsistenciaPage() {
 
   }, [seccionSeleccionada, periodoSeleccionado, user, seccionesDisponibles]);
 
-  // 5. Load Students AND Existing Attendance
+  // 5. Load Allowed Days from Schedule (horarios_clase)
+  useEffect(() => {
+    if (!seccionSeleccionada || !materiaSeleccionada || !periodoSeleccionado || !user) {
+        setAllowedDays([]);
+        return;
+    }
+
+    const cargarDiasPermitidos = async () => {
+        try {
+            const seccionObj = seccionesDisponibles.find(s => s.seccion === seccionSeleccionada);
+            if (!seccionObj) return;
+
+            // Query schedule for this teacher, subject, section, and period
+            const qSchedule = query(
+                collection(db, "horarios_clase"),
+                where("id_docente", "==", user.uid),
+                where("id_materia", "==", materiaSeleccionada),
+                where("id_seccion", "==", seccionObj.id),
+                where("id_periodo_escolar", "==", periodoSeleccionado)
+            );
+
+            const snapshot = await getDocs(qSchedule);
+            const days = [...new Set(snapshot.docs.map(doc => doc.data().dia as number))];
+            setAllowedDays(days.sort());
+
+        } catch (error) {
+            console.error("Error loading schedule days:", error);
+            setAllowedDays([]);
+        }
+    };
+
+    cargarDiasPermitidos();
+  }, [seccionSeleccionada, materiaSeleccionada, periodoSeleccionado, user, seccionesDisponibles]);
+
+  // 6. Load Students AND Existing Attendance
   useEffect(() => {
      if (!seccionSeleccionada || !date || !materiaSeleccionada) {
          setEstudiantes([]);
@@ -372,6 +409,28 @@ export default function AsistenciaPage() {
       }
   };
 
+  // Date validation: Only allow dates that match the teacher's schedule days
+  const disableDate = (date: Date) => {
+    if (allowedDays.length === 0) {
+      // If no schedule is set, disable all dates
+      return true;
+    }
+    
+    // Get day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+    const dayOfWeek = date.getDay();
+    
+    // Convert to our format (1 = Monday, 2 = Tuesday, ..., 5 = Friday)
+    // Sunday (0) -> not allowed, Saturday (6) -> not allowed
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return true; // Disable weekends
+    }
+    
+    const ourDayFormat = dayOfWeek; // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri (matches our database)
+    
+    // Only enable if this day is in the allowed days
+    return !allowedDays.includes(ourDayFormat);
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-4">
@@ -472,11 +531,26 @@ export default function AsistenciaPage() {
                         mode="single"
                         selected={date}
                         onSelect={setDate}
+                        disabled={disableDate}
                         initialFocus
                         locale={es}
                         />
                     </PopoverContent>
                  </Popover>
+                  {/* Show allowed days info */}
+                  {allowedDays.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                          Días permitidos: {allowedDays.map(d => {
+                              const dayNames = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+                              return dayNames[d];
+                          }).join(', ')}
+                      </p>
+                  )}
+                  {allowedDays.length === 0 && materiaSeleccionada && (
+                      <p className="text-xs text-amber-600 mt-1">
+                          ⚠️ No hay horario asignado para esta materia y sección
+                      </p>
+                  )}
              </div>
         </CardContent>
       </Card>

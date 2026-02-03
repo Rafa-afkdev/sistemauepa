@@ -2,8 +2,8 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { CardTitle } from "@/components/ui/card";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -16,6 +16,7 @@ import type { InscripcionSeccion } from "@/interfaces/secciones.interface";
 import { Representante } from "@/interfaces/users.interface";
 import { getCollection, getDocument } from "@/lib/data/firebase";
 import { where } from "firebase/firestore";
+import { Check } from "lucide-react";
 import { showToast } from "nextjs-toast-notify";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { useState } from "react";
@@ -33,6 +34,12 @@ export function CreateConstanciaStudent() {
   const [nivelEducativo, setNivelEducativo] = useState<string | null>(null);
   const [seccionNombre, setSeccionNombre] = useState<string | null>(null);
   const [isLoadingLookups, setIsLoadingLookups] = useState<boolean>(false);
+  
+  // Estados para el combobox de búsqueda
+  const [searchValue, setSearchValue] = useState("");
+  const [allStudents, setAllStudents] = useState<Estudiantes[]>([]);
+  const [filteredStudents, setFilteredStudents] = useState<Estudiantes[]>([]);
+  const [openCombobox, setOpenCombobox] = useState(false);
 
   const handleGenerateConstancia = () => {
     if (!estudiantes) return;
@@ -95,6 +102,108 @@ export function CreateConstanciaStudent() {
       };
       
       fetchRepresentative();
+    }
+  };
+
+  // Cargar todos los estudiantes al abrir el componente
+  const loadAllStudents = async () => {
+    try {
+      const students = (await getCollection("estudiantes")) as Estudiantes[];
+      // Ordenar por apellidos
+      students.sort((a, b) => (a.apellidos || "").localeCompare(b.apellidos || ""));
+      setAllStudents(students);
+    } catch (error) {
+      console.error("Error loading students:", error);
+    }
+  };
+
+  // Filtrar estudiantes según la búsqueda
+  const handleSearchChange = (value: string) => {
+    setSearchValue(value);
+    
+    if (!value.trim()) {
+      setFilteredStudents([]);
+      return;
+    }
+
+    const searchLower = value.toLowerCase();
+    const filtered = allStudents
+      .filter((student) => {
+        const fullName = `${student.nombres} ${student.apellidos}`.toLowerCase();
+        const cedula = student.cedula?.toString() || "";
+        return fullName.includes(searchLower) || cedula.includes(searchLower);
+      })
+      .slice(0, 5); // Limitar a 5 resultados
+
+    setFilteredStudents(filtered);
+  };
+
+  // Seleccionar estudiante del combobox
+  const handleSelectStudent = async (student: Estudiantes) => {
+    setEstudiantes(student);
+    setCedula(student.cedula.toString());
+    setOpenCombobox(false);
+    setSearchValue(`${student.nombres} ${student.apellidos}`);
+
+    // Cargar datos adicionales del estudiante
+    setIsLoading(true);
+    try {
+      if (student?.id) {
+        const insc = (await getCollection(
+          "estudiantes_inscritos",
+          [where("id_estudiante", "==", student.id)]
+        )) as InscripcionSeccion[];
+        const latest = [...(insc || [])].sort((a: any, b: any) => {
+          const ta = a?.fecha_inscripcion?.toMillis ? a.fecha_inscripcion.toMillis() : 0;
+          const tb = b?.fecha_inscripcion?.toMillis ? b.fecha_inscripcion.toMillis() : 0;
+          return tb - ta;
+        })[0];
+        setInscripcionActual(latest ?? null);
+
+        if (latest) {
+          setIsLoadingLookups(true);
+          
+          let periodoNombreTemp = latest.id_periodo_escolar;
+          let gradoAñoTemp = "N/A";
+          
+          if (latest.id_periodo_escolar) {
+            try {
+              const periodoDoc = (await getDocument(`periodos_escolares/${latest.id_periodo_escolar}`)) as any;
+              periodoNombreTemp = periodoDoc?.periodo ?? latest.id_periodo_escolar;
+              setPeriodoNombre(periodoNombreTemp);
+            } catch (error) {
+              console.error("Error obteniendo periodo:", error);
+              setPeriodoNombre(latest.id_periodo_escolar);
+            }
+          }
+
+          if (latest.id_seccion) {
+            try {
+              const seccionDoc = (await getDocument(`secciones/${latest.id_seccion}`)) as any;
+              gradoAñoTemp = seccionDoc?.grado_año ?? "N/A";
+              setGradoAño(gradoAñoTemp);
+              setSeccionNombre(seccionDoc?.seccion ?? "U");
+            } catch (error) {
+              console.error("Error obteniendo sección:", error);
+              setGradoAño("N/A");
+              setSeccionNombre("U");
+            }
+          }
+
+          setNivelEducativo(latest.nivel_educativo);
+          setIsLoadingLookups(false);
+        } else {
+          setPeriodoNombre(null);
+          setGradoAño(null);
+          setNivelEducativo(null);
+          setIsLoadingLookups(false);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading student data:", error);
+      showToast.error("Error al cargar datos del estudiante");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -296,23 +405,23 @@ export function CreateConstanciaStudent() {
 
     page.drawImage(embeddedLogoAdventista, {
       x: leftMargin,
-      y: currentY - 60,
-      width: 75,
-      height: 65,
+      y: currentY - 75,
+      width: 98,
+      height: 85,
     });
 
     page.drawImage(embeddedLogoText, {
-      x: width / 2 - 95,
-      y: currentY - 60,
-      width: 180,
-      height: 45,
+      x: width / 2 - 120,
+      y: currentY - 75,
+      width: 235,
+      height: 60,
     });
 
     page.drawImage(embeddedLogo, {
-      x: width - rightMargin - 60,
-      y: currentY - 60,
-      width: 60,
-      height: 60,
+      x: width - rightMargin - 78,
+      y: currentY - 75,
+      width: 78,
+      height: 78,
     });
 
     currentY -= 100;
@@ -351,13 +460,14 @@ export function CreateConstanciaStudent() {
       { text: "Quien Suscribe, el ciudadano", font: arialFont },
       { text: "RONY DANIEL BRAZON MATA", font: boldFont },
       { text: ", Titular de la C.I: ", font: arialFont },
-      { text: "16.273.472", font: boldFont },
-      { text: ", Director de la Unidad Educativa Privada Adventista", font: arialFont },
-      { text: "ALEJANDRO OROPEZA CASTILLO", font: boldFont },
-      { text: ", que funciona en Guarenas, hace constar por este medio que el (a) Estudiante: ", font: arialFont },
+      { text: "V-16.273.472,", font: boldFont },
+      { text: "Director de la Unidad Educativa Privada Adventista", font: arialFont },
+      { text: "ALEJANDRO OROPEZA CASTILLO,", font: boldFont },
+      { text: "que funciona en Guarenas, hace constar por este medio que el (a) Estudiante: ", font: arialFont },
       { text: `${estudiante.apellidos} ${estudiante.nombres}`, font: boldFont, underline: true },
-      { text: ", Titular de la C.I: ", font: arialFont },
-      { text:"V-" + estudiante.cedula.toString(), font: boldFont },
+      { text: ",", font: arialFont },
+      { text: "Titular de la C.I: ", font: arialFont },
+      { text:estudiante.tipo_cedula + "-" + estudiante.cedula.toString(), font: boldFont },
       { text: ", cursa ", font: arialFont },
       { text: "ESTUDIOS", font: boldFont, underline: true },
       { text: ` de ${gradoAño ?? "N/A"} ${nivelEducativo ?? "N/A"}, en el Nivel de ${nivelEducativo === "Grado" ? "Educación Primaria" : "Educación Media General"}, en esta Institución. En el Periodo Escolar ${periodoNombre ?? "N/A"}.`, font: arialFont },
@@ -416,7 +526,7 @@ export function CreateConstanciaStudent() {
     currentY -= lineHeight * 2;
 
     // Date (ajustado para respetar márgenes)
-    const dateText = `Constancia que se expide a petición de parte interesada en Guarenas el día ${formatDate(new Date())}.`;
+    const dateText = `Constancia que se expide a petición de parte interesada en Guarenas, el día ${formatDate(new Date())}.`;
     const dateWords = dateText.split(/\s+/).map(word => ({
       text: word,
       font: arialFont
@@ -432,13 +542,19 @@ export function CreateConstanciaStudent() {
  dateWords.forEach(word => {
     const wordWidth = getWordWidth(word.text, fontSize, word.font);
     const spaceWidth = getWordWidth(" ", fontSize, word.font);
+    const currentEffectiveWidth = isFirstLineOfDate ? effectiveWidth - 28 : effectiveWidth;
     
-    if (dateLineWidth + wordWidth + (dateLine.length > 0 ? spaceWidth : 0) > effectiveWidth) {
-      drawJustifiedLine(dateLine, currentY, effectiveWidth, fontSize, isFirstLineOfDate);
+    if (dateLineWidth + wordWidth + (dateLine.length > 0 ? spaceWidth : 0) > currentEffectiveWidth) {
+      if (isFirstLineOfDate) indentSize = 28;
+      const lineWidth = isFirstLineOfDate ? effectiveWidth - 28 : effectiveWidth;
+      drawJustifiedLine(dateLine, currentY, lineWidth, fontSize, isFirstLineOfDate);
       currentY -= lineHeight;
       dateLine = [];
       dateLineWidth = 0;
-      isFirstLineOfDate = false;
+      if (isFirstLineOfDate) {
+        indentSize = 0;
+        isFirstLineOfDate = false;
+      }
     }
     
     dateLine.push(word);
@@ -446,7 +562,12 @@ export function CreateConstanciaStudent() {
   });
   
   if (dateLine.length > 0) {
-    drawJustifiedLine(dateLine, currentY, effectiveWidth, fontSize, true);
+    if (isFirstLineOfDate) indentSize = 28;
+    const lineWidth = isFirstLineOfDate ? effectiveWidth - 28 : effectiveWidth;
+    drawJustifiedLine(dateLine, currentY, lineWidth, fontSize, true);
+    if (isFirstLineOfDate) {
+      indentSize = 0;
+    }
   }
 
   currentY -= lineHeight * 3; // Espacio antes de la firma
@@ -622,23 +743,23 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
 
     page.drawImage(embeddedLogoAdventista, {
       x: leftMargin,
-      y: currentY - 60,
-      width: 75,
-      height: 65,
+      y: currentY - 75,
+      width: 98,
+      height: 85,
     });
 
     page.drawImage(embeddedLogoText, {
-      x: width / 2 - 95,
-      y: currentY - 60,
-      width: 180,
-      height: 45,
+      x: width / 2 - 120,
+      y: currentY - 75,
+      width: 235,
+      height: 60,
     });
 
     page.drawImage(embeddedLogo, {
-      x: width - rightMargin - 60,
-      y: currentY - 60,
-      width: 60,
-      height: 60,
+      x: width - rightMargin - 78,
+      y: currentY - 75,
+      width: 78,
+      height: 78,
     });
 
     currentY -= 100;
@@ -677,13 +798,14 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
       { text: "Quien Suscribe, el ciudadano", font: arialFont },
       { text: "RONY DANIEL BRAZON MATA", font: boldFont },
       { text: ", Titular de la C.I: ", font: arialFont },
-      { text: "16.273.472", font: boldFont },
-      { text: ", Director de la Unidad Educativa Privada Adventista", font: arialFont },
-      { text: "ALEJANDRO OROPEZA CASTILLO", font: boldFont },
-      { text: ", que funciona en Guarenas, hace constar por este medio que el (a) Estudiante: ", font: arialFont },
+      { text: "V-16.273.472,", font: boldFont },
+      { text: "Director de la Unidad Educativa Privada Adventista", font: arialFont },
+      { text: "ALEJANDRO OROPEZA CASTILLO,", font: boldFont },
+      { text: "que funciona en Guarenas, hace constar por este medio que el (a) Estudiante: ", font: arialFont },
       { text: `${student.apellidos} ${student.nombres}`, font: boldFont, underline: true },
-      { text: ", Titular de la C.I: ", font: arialFont },
-      { text:"V-" + student.cedula.toString(), font: boldFont },
+      { text: ",", font: arialFont },
+      { text: "Titular de la C.I: ", font: arialFont },
+      { text: student.tipo_cedula + "-" + student.cedula.toString(), font: boldFont },
       { text: ", ha sido ", font: arialFont },
       { text: "INSCRITO", font: boldFont, underline: true },
       { text: ` de ${gradoAño ?? "N/A"} ${nivelEducativo ?? "N/A"}, en el Nivel de ${nivelEducativo === "Grado" ? "Educación Primaria" : "Educación Media General"}, en esta Institución. En el Periodo Escolar ${periodoNombre ?? "N/A"}.`, font: arialFont },
@@ -742,7 +864,7 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
     currentY -= lineHeight * 2;
 
     // Date (ajustado para respetar márgenes)
-    const dateText = `Constancia que se expide a petición de parte interesada en Guarenas el día ${formatDate(new Date())}.`;
+    const dateText = `Constancia que se expide a petición de parte interesada en Guarenas, * el día ${formatDate(new Date())}.`;
     const dateWords = dateText.split(/\s+/).map(word => ({
       text: word,
       font: arialFont
@@ -758,13 +880,19 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
  dateWords.forEach(word => {
     const wordWidth = getWordWidth(word.text, fontSize, word.font);
     const spaceWidth = getWordWidth(" ", fontSize, word.font);
+    const currentEffectiveWidth = isFirstLineOfDate ? effectiveWidth - 28 : effectiveWidth;
     
-    if (dateLineWidth + wordWidth + (dateLine.length > 0 ? spaceWidth : 0) > effectiveWidth) {
-      drawJustifiedLine(dateLine, currentY, effectiveWidth, fontSize, isFirstLineOfDate);
+    if (dateLineWidth + wordWidth + (dateLine.length > 0 ? spaceWidth : 0) > currentEffectiveWidth) {
+      if (isFirstLineOfDate) indentSize = 28;
+      const lineWidth = isFirstLineOfDate ? effectiveWidth - 28 : effectiveWidth;
+      drawJustifiedLine(dateLine, currentY, lineWidth, fontSize, isFirstLineOfDate);
       currentY -= lineHeight;
       dateLine = [];
       dateLineWidth = 0;
-      isFirstLineOfDate = false;
+      if (isFirstLineOfDate) {
+        indentSize = 0;
+        isFirstLineOfDate = false;
+      }
     }
     
     dateLine.push(word);
@@ -772,7 +900,12 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
   });
   
   if (dateLine.length > 0) {
-    drawJustifiedLine(dateLine, currentY, effectiveWidth, fontSize, true);
+    if (isFirstLineOfDate) indentSize = 28;
+    const lineWidth = isFirstLineOfDate ? effectiveWidth - 28 : effectiveWidth;
+    drawJustifiedLine(dateLine, currentY, lineWidth, fontSize, true);
+    if (isFirstLineOfDate) {
+      indentSize = 0;
+    }
   }
 
   currentY -= lineHeight * 3; // Espacio antes de la firma
@@ -924,23 +1057,23 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
 
     page.drawImage(embeddedLogoAdventista, {
       x: leftMargin,
-      y: currentY - 60,
-      width: 75,
-      height: 65,
+      y: currentY - 75,
+      width: 98,
+      height: 85,
     });
 
     page.drawImage(embeddedLogoText, {
-      x: width / 2 - 95,
-      y: currentY - 60,
-      width: 180,
-      height: 45,
+      x: width / 2 - 120,
+      y: currentY - 75,
+      width: 235,
+      height: 60,
     });
 
     page.drawImage(embeddedLogo, {
-      x: width - rightMargin - 60,
-      y: currentY - 60,
-      width: 60,
-      height: 60,
+      x: width - rightMargin - 78,
+      y: currentY - 75,
+      width: 78,
+      height: 78,
     });
 
     currentY -= 160;
@@ -963,11 +1096,11 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
     const contentParts: { text: string; font: any; underline?: boolean }[] = [
       { text: "Quién suscribe, el ciudadano", font: arialFont },
       { text: "RONY DANIEL BRAZON MATA", font: boldFont },
-      { text: ", Titular de la C.I", font: arialFont },
-      { text: "16.273.472,", font: boldFont },
+      { text: ", Titular de la C.I: ", font: arialFont },
+      { text: "V-16.273.472,", font: boldFont },
       { text: "Director de la Unidad Educativa Privada Adventista", font: arialFont },
-      { text: '"ALEJANDRO OROPEZA CASTILLO"', font: boldFont },
-      { text: ", inscrita en el Ministerio del Poder Popular para la Educación, bajo el código DEA PD 16121517, por medio de la presente, hace constar que el Señor (a):", font: arialFont },
+      { text: '"ALEJANDRO OROPEZA CASTILLO",', font: boldFont },
+      { text: "inscrita en el Ministerio del Poder Popular para la Educación, bajo el código DEA PD 16121517, por medio de la presente, hace constar que el Señor (a):", font: arialFont },
       { text: `${representante.apellidos} ${representante.nombres}`, font: boldFont },
       { text: ", titular de la Cédula de Identidad N°:", font: arialFont },
       { text: `${representante.tipo_cedula}-${representante.cedula}`, font: boldFont },
@@ -1039,13 +1172,19 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
     dateWords.forEach(word => {
       const wordWidth = getWordWidth(word.text, fontSize, word.font);
       const spaceWidth = getWordWidth(" ", fontSize, word.font);
+      const currentEffectiveWidth = isFirstLineOfDate ? effectiveWidth - 28 : effectiveWidth;
       
-      if (dateLineWidth + wordWidth + (dateLine.length > 0 ? spaceWidth : 0) > effectiveWidth) {
-        drawJustifiedLine(dateLine, currentY, effectiveWidth, fontSize, isFirstLineOfDate);
+      if (dateLineWidth + wordWidth + (dateLine.length > 0 ? spaceWidth : 0) > currentEffectiveWidth) {
+        if (isFirstLineOfDate) indentSize = 28;
+        const lineWidth = isFirstLineOfDate ? effectiveWidth - 28 : effectiveWidth;
+        drawJustifiedLine(dateLine, currentY, lineWidth, fontSize, isFirstLineOfDate);
         currentY -= lineHeight;
         dateLine = [];
         dateLineWidth = 0;
-        isFirstLineOfDate = false;
+        if (isFirstLineOfDate) {
+          indentSize = 0;
+          isFirstLineOfDate = false;
+        }
       }
       
       dateLine.push(word);
@@ -1053,7 +1192,12 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
     });
     
     if (dateLine.length > 0) {
-      drawJustifiedLine(dateLine, currentY, effectiveWidth, fontSize, true);
+      if (isFirstLineOfDate) indentSize = 28;
+      const lineWidth = isFirstLineOfDate ? effectiveWidth - 28 : effectiveWidth;
+      drawJustifiedLine(dateLine, currentY, lineWidth, fontSize, true);
+      if (isFirstLineOfDate) {
+        indentSize = 0;
+      }
     }
 
     currentY -= lineHeight * 3;
@@ -1128,31 +1272,46 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
         <div className="p-6 bg-white shadow-lg rounded-2xl border border-gray-200 max-w-md mx-auto">
           <CardTitle>Buscar Estudiante</CardTitle><br />
 
-          <Input
-  type="number"
-  placeholder="Ingrese la cédula"
-  value={cedula}
-  maxLength={11} // Evita que se escriban más de 11 caracteres
-  onInput={(e) => {
-    const input = e.target as HTMLInputElement;
-    if (input.value.length > 11) {
-      input.value = input.value.slice(0, 11);
-    }
-  }}
-  onChange={(e) => setCedula(e.target.value)}
-  onWheel={(e) => {
-    // Previene el comportamiento predeterminado del scroll
-    e.currentTarget.blur(); // Quita el foco del input para evitar cambios
-  }}
-  className="mb-4 border-gray-300 focus:ring-indigo-500"
-/>
-          <Button
-            onClick={getStudents}
-            disabled={isLoading}
-            className={`w-full py-2 }`}
-          >
-            {isLoading ? "Buscando..." : "Buscar Estudiante "}
-          </Button>
+          <Command className="border rounded-lg" shouldFilter={false}>
+            <CommandInput 
+              placeholder="Buscar por cédula o nombre..."
+              value={searchValue}
+              onValueChange={handleSearchChange}
+              onFocus={() => {
+                if (allStudents.length === 0) loadAllStudents();
+                setOpenCombobox(true);
+              }}
+            />
+            {openCombobox && searchValue && (
+              <CommandList className="max-h-[200px] overflow-y-auto">
+                <CommandEmpty>No se encontraron estudiantes.</CommandEmpty>
+                <CommandGroup>
+                  {filteredStudents.map((student) => (
+                    <CommandItem
+                      key={student.id}
+                      value={student.id}
+                      onSelect={() => handleSelectStudent(student)}
+                      className="cursor-pointer"
+                    >
+                      <Check
+                        className={`mr-2 h-4 w-4 ${
+                          estudiantes?.id === student.id ? "opacity-100" : "opacity-0"
+                        }`}
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-medium">
+                          {student.nombres} {student.apellidos}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          CI: {student.tipo_cedula}-{student.cedula}
+                        </span>
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            )}
+          </Command>
         </div>
       </Dialog>
       {estudiantes && (
