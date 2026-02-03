@@ -13,6 +13,7 @@ docente_id?: string;
 periodo_escolar_id: string,
 criterios: ContenidoCriterios[];
 nota_definitiva: number,
+porcentaje: number, // Porcentaje de la evaluación (ej: 30 para 30%)
 fecha: string,
 createdAt?: Timestamp,
 updatedAt?: Timestamp,

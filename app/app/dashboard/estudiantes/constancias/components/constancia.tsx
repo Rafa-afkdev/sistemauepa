@@ -467,8 +467,8 @@ export function CreateConstanciaStudent() {
       { text: `${estudiante.apellidos} ${estudiante.nombres}`, font: boldFont, underline: true },
       { text: ",", font: arialFont },
       { text: "Titular de la C.I: ", font: arialFont },
-      { text:estudiante.tipo_cedula + "-" + estudiante.cedula.toString(), font: boldFont },
-      { text: ", cursa ", font: arialFont },
+      { text:estudiante.tipo_cedula + "-" + estudiante.cedula.toString() + ",", font: boldFont },
+      { text: "cursa ", font: arialFont },
       { text: "ESTUDIOS", font: boldFont, underline: true },
       { text: ` de ${gradoAño ?? "N/A"} ${nivelEducativo ?? "N/A"}, en el Nivel de ${nivelEducativo === "Grado" ? "Educación Primaria" : "Educación Media General"}, en esta Institución. En el Periodo Escolar ${periodoNombre ?? "N/A"}.`, font: arialFont },
     ];
@@ -805,8 +805,8 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
       { text: `${student.apellidos} ${student.nombres}`, font: boldFont, underline: true },
       { text: ",", font: arialFont },
       { text: "Titular de la C.I: ", font: arialFont },
-      { text: student.tipo_cedula + "-" + student.cedula.toString(), font: boldFont },
-      { text: ", ha sido ", font: arialFont },
+      { text: student.tipo_cedula + "-" + student.cedula.toString() + ",", font: boldFont },
+      { text: "ha sido ", font: arialFont },
       { text: "INSCRITO", font: boldFont, underline: true },
       { text: ` de ${gradoAño ?? "N/A"} ${nivelEducativo ?? "N/A"}, en el Nivel de ${nivelEducativo === "Grado" ? "Educación Primaria" : "Educación Media General"}, en esta Institución. En el Periodo Escolar ${periodoNombre ?? "N/A"}.`, font: arialFont },
     ];
@@ -864,7 +864,7 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
     currentY -= lineHeight * 2;
 
     // Date (ajustado para respetar márgenes)
-    const dateText = `Constancia que se expide a petición de parte interesada en Guarenas, * el día ${formatDate(new Date())}.`;
+    const dateText = `Constancia que se expide a petición de parte interesada en Guarenas, el día ${formatDate(new Date())}.`;
     const dateWords = dateText.split(/\s+/).map(word => ({
       text: word,
       font: arialFont
@@ -1105,8 +1105,8 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
       { text: ", titular de la Cédula de Identidad N°:", font: arialFont },
       { text: `${representante.tipo_cedula}-${representante.cedula}`, font: boldFont },
       { text: " Representante de:", font: arialFont },
-      { text: `${student.apellidos} ${student.nombres}`, font: boldFont },
-      { text: ", cursante de:", font: arialFont },
+      { text: `${student.apellidos} ${student.nombres},`, font: boldFont },
+      { text: "cursante de:", font: arialFont },
       { text: `${gradoAño ?? "N/A"} "${seccionNombre ?? "U"}"`, font: boldFont },
       { text: " asistió el:", font: arialFont },
       { text: `${formattedDate}`, font: boldFont },

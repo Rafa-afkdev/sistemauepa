@@ -4,23 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { useUser } from "@/hooks/use-user";
 import { ContenidoCriterios, Evaluaciones } from "@/interfaces/evaluaciones.interface";
@@ -72,6 +72,7 @@ export function CrearEvaluacionDialog({
   const [seccionId, setSeccionId] = useState("");
   const [periodoEscolarId, setPeriodoEscolarId] = useState("");
   const [fecha, setFecha] = useState<Date>();
+  const [porcentaje, setPorcentaje] = useState<number>(0);
   const [tieneCriterios, setTieneCriterios] = useState(false);
   const [criterios, setCriterios] = useState<ContenidoCriterios[]>([
     { nro_criterio: "1", nombre: "", ponderacion: 0 },
@@ -96,6 +97,7 @@ export function CrearEvaluacionDialog({
     setMateriaId(evaluacionToEdit.materia_id || "");
     setSeccionId(evaluacionToEdit.seccion_id || "");
     setPeriodoEscolarId(evaluacionToEdit.periodo_escolar_id || "");
+    setPorcentaje(evaluacionToEdit.porcentaje || 0);
 
     // Ajustar fecha (sumar un día para compensar zona horaria si es necesario, o parsear correctamente)
     // Asumiendo que viene en formato YYYY-MM-DD
@@ -282,6 +284,11 @@ export function CrearEvaluacionDialog({
       return;
     }
 
+    if (porcentaje <= 0 || porcentaje > 100) {
+      showToast.error("El porcentaje debe estar entre 1 y 100");
+      return;
+    }
+
     // Validar criterios solo si tiene criterios personalizados
     let criteriosFinales = criterios;
 
@@ -340,6 +347,7 @@ export function CrearEvaluacionDialog({
         docente_id: user?.uid || "",
         criterios: criteriosFinales,
         nota_definitiva: 20,
+        porcentaje: porcentaje,
         fecha: format(fecha, "yyyy-MM-dd"),
         status: "POR EVALUAR",
         createdAt: new Date(),
@@ -446,6 +454,7 @@ export function CrearEvaluacionDialog({
     setSeccionId("");
     setPeriodoEscolarId("");
     setFecha(undefined);
+    setPorcentaje(0);
     setTieneCriterios(false);
     setCriterios([{ nro_criterio: "1", nombre: "", ponderacion: 0 }]);
   };
@@ -650,6 +659,31 @@ export function CrearEvaluacionDialog({
                 />
               </PopoverContent>
             </Popover>
+          </div>
+
+          {/* Porcentaje de la Evaluación */}
+          <div className="space-y-2">
+            <Label htmlFor="porcentaje">
+              Porcentaje de la Evaluación <span className="text-red-500">*</span>
+            </Label>
+            <div className="flex gap-2 items-center">
+              <Input
+                id="porcentaje"
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                placeholder="Ej: 30"
+                value={porcentaje || ""}
+                onChange={(e) => setPorcentaje(Number(e.target.value))}
+                required
+                className="flex-1"
+              />
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Indica el porcentaje que representa esta evaluación en el lapso (1-100%)
+            </p>
           </div>
 
           {/* Criterios de Evaluación */}
