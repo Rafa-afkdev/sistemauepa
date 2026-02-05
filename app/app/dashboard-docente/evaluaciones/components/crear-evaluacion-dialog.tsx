@@ -29,8 +29,8 @@ import { addDocument, db, updateDocument } from "@/lib/data/firebase";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
-import { CalendarIcon, Loader2, Plus, Trash2 } from "lucide-react";
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, where } from "firebase/firestore";
+import { CalendarIcon, Check, ChevronDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { showToast } from "nextjs-toast-notify";
 import { useEffect, useState } from "react";
 
@@ -69,7 +69,7 @@ export function CrearEvaluacionDialog({
   const [tipoEvaluacion, setTipoEvaluacion] = useState("");
   const [lapsoId, setLapsoId] = useState("");
   const [materiaId, setMateriaId] = useState("");
-  const [seccionId, setSeccionId] = useState("");
+  const [seccionesIds, setSeccionesIds] = useState<string[]>([]);
   const [periodoEscolarId, setPeriodoEscolarId] = useState("");
   const [fecha, setFecha] = useState<Date>();
   const [porcentaje, setPorcentaje] = useState<number>(0);
@@ -95,7 +95,7 @@ export function CrearEvaluacionDialog({
     setTipoEvaluacion(evaluacionToEdit.tipo_evaluacion || "");
     setLapsoId(evaluacionToEdit.lapsop_id || "");
     setMateriaId(evaluacionToEdit.materia_id || "");
-    setSeccionId(evaluacionToEdit.seccion_id || "");
+    setSeccionesIds(evaluacionToEdit.seccion_id ? [evaluacionToEdit.seccion_id] : []);
     setPeriodoEscolarId(evaluacionToEdit.periodo_escolar_id || "");
     setPorcentaje(evaluacionToEdit.porcentaje || 0);
 
@@ -144,7 +144,7 @@ export function CrearEvaluacionDialog({
       loadSeccionesPorMateria(materiaId);
     } else {
       setSecciones([]);
-      setSeccionId("");
+      setSeccionesIds([]);
     }
   }, [materiaId, user]);
 
@@ -279,7 +279,7 @@ export function CrearEvaluacionDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!nombreEvaluacion || !tipoEvaluacion || !materiaId || !seccionId || !fecha) {
+    if (!nombreEvaluacion || !tipoEvaluacion || !materiaId || seccionesIds.length === 0 || !fecha) {
       showToast.error("Por favor completa todos los campos requeridos");
       return;
     }
@@ -312,92 +312,129 @@ export function CrearEvaluacionDialog({
     setIsSubmitting(true);
 
     try {
-      // Validar duplicidad: Consultar si ya existe evaluación para esta sección y fecha
-      const evaluacionesRef = collection(db, "evaluaciones");
-      const qDuplicados = query(
-        evaluacionesRef,
-        where("seccion_id", "==", seccionId),
-        where("fecha", "==", format(fecha, "yyyy-MM-dd"))
-      );
-
-      const duplicadosSnapshot = await getDocs(qDuplicados);
-
-      const existeDuplicado = duplicadosSnapshot.docs.some(docSnap => {
-        // Si estamos editando, ignorar el documento actual
-        if (isEditing && evaluacionToEdit?.id) {
-          return docSnap.id !== evaluacionToEdit.id;
-        }
-        return true;
-      });
-
-      if (existeDuplicado) {
-        showToast.error("Ya existe una evaluación programada para esta sección en esta fecha.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      const evaluacionData = {
-        id_evaluacion: `EVAL${Date.now()}`,
-        nombre_evaluacion: nombreEvaluacion,
-        tipo_evaluacion: tipoEvaluacion,
-        lapsop_id: lapsoId,
-        materia_id: materiaId,
-        seccion_id: seccionId,
-        periodo_escolar_id: periodoEscolarId,
-        docente_id: user?.uid || "",
-        criterios: criteriosFinales,
-        nota_definitiva: 20,
-        porcentaje: porcentaje,
-        fecha: format(fecha, "yyyy-MM-dd"),
-        status: "POR EVALUAR",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      // Guardar en Firebase
+      // MODO EDICIÓN: Solo actualizar la evaluación existente (una sola sección)
       if (isEditing && evaluacionToEdit?.id) {
-        // Actualizar
-        const evaluacionActualizada = {
-          ...evaluacionData,
-          id: undefined, // No guardar el id dentro del documento si no es necesario o si ya está en otro lado
-          updatedAt: new Date(),
-          // Mantener campos que no editamos
-          createdAt: evaluacionToEdit.createdAt || new Date(),
-          id_evaluacion: evaluacionToEdit.id_evaluacion,
-          status: evaluacionToEdit.status
-        };
+        const criteriosFinales = tieneCriterios
+          ? criterios
+          : [{ nro_criterio: "1", nombre: "Criterio Único", ponderacion: 20 }];
 
-        // Remove undefined fields
-        delete evaluacionActualizada.id;
+        const evaluacionData = {
+          nombre_evaluacion: nombreEvaluacion,
+          tipo_evaluacion: tipoEvaluacion,
+          lapsop_id: lapsoId,
+          materia_id: materiaId,
+          seccion_id: seccionesIds[0] || "", // Solo una sección en modo edición
+          periodo_escolar_id: periodoEscolarId,
+          criterios: criteriosFinales,
+          porcentaje: porcentaje,
+          fecha: format(fecha, "yyyy-MM-dd"),
+          status: "POR EVALUAR",
+          updatedAt: serverTimestamp(),
+        };
 
         // GUARDAR HISTORIAL DE CAMBIOS
         try {
-             const historialData = {
-                evaluacion_id: evaluacionToEdit.id,
-                docente_id: user?.uid,
-                fecha_cambio: new Date(),
-                accion: "EDICION",
-                datos_previos: {
-                    nombre_evaluacion: evaluacionToEdit.nombre_evaluacion,
-                    tipo_evaluacion: evaluacionToEdit.tipo_evaluacion,
-                    fecha: evaluacionToEdit.fecha,
-                    criterios: evaluacionToEdit.criterios,
-                    nota_definitiva: evaluacionToEdit.nota_definitiva
-                }
-             };
-             await addDocument("historial_cambios_evaluaciones", historialData);
-             console.log("Historial guardado correctamente");
+          const historialData = {
+            evaluacion_id: evaluacionToEdit.id,
+            docente_id: user?.uid,
+            fecha_cambio: new Date(),
+            accion: "EDICION",
+            datos_previos: {
+              nombre_evaluacion: evaluacionToEdit.nombre_evaluacion,
+              tipo_evaluacion: evaluacionToEdit.tipo_evaluacion,
+              fecha: evaluacionToEdit.fecha,
+              criterios: evaluacionToEdit.criterios,
+              nota_definitiva: evaluacionToEdit.nota_definitiva
+            }
+          };
+          await addDocument("historial_cambios_evaluaciones", historialData);
+          console.log("Historial guardado correctamente");
         } catch (error) {
-            console.error("Error al guardar historial de cambios:", error);
-            // No detenemos el flujo principal si falla el historial
+          console.error("Error al guardar historial de cambios:", error);
+          // No detenemos el flujo principal si falla el historial
         }
 
-        await updateDocument(`evaluaciones/${evaluacionToEdit.id}`, evaluacionActualizada);
+        await updateDocument(`evaluaciones/${evaluacionToEdit.id}`, evaluacionData);
         showToast.success("Evaluación actualizada exitosamente");
-      } else {
-        // Crear nueva
-        await addDocument("evaluaciones", evaluacionData);
-        showToast.success("Evaluación creada exitosamente");
+      } 
+      // MODO CREACIÓN: Crear una evaluación por cada sección seleccionada
+      else {
+        const criteriosFinales = tieneCriterios
+          ? criterios
+          : [{ nro_criterio: "1", nombre: "Criterio Único", ponderacion: 20 }];
+
+        let evaluacionesCreadas = 0;
+        const evaluacionesRef = collection(db, "evaluaciones");
+
+        console.log("🚀 INICIO - Creación múltiple", {
+          seccionesSeleccionadas: seccionesIds,
+          totalSecciones: seccionesIds.length
+        });
+
+        // Iterar sobre cada sección seleccionada
+        for (const seccionId of seccionesIds) {
+          console.log(`📝 Procesando sección: ${seccionId}`);
+          
+          // Validar duplicidad para esta sección específica
+          const qDuplicados = query(
+            evaluacionesRef,
+            where("seccion_id", "==", seccionId),
+            where("fecha", "==", format(fecha, "yyyy-MM-dd"))
+          );
+
+          const duplicadosSnapshot = await getDocs(qDuplicados);
+
+          if (duplicadosSnapshot.docs.length > 0) {
+            // Obtener nombre de la sección para el mensaje
+            const seccionNombre = secciones.find(s => s.seccion_id === seccionId);
+            const nombreCorto = seccionNombre 
+              ? `${seccionNombre.grado_año} "${seccionNombre.seccion}"`
+              : `Sección ${seccionId}`;
+            
+            console.log(`⚠️ DUPLICADO encontrado para ${nombreCorto}`);
+            showToast.warning(`Ya existe una evaluación para ${nombreCorto} en esta fecha. Se omitió esta sección.`);
+            continue; // Saltar esta sección y continuar con la siguiente
+          }
+
+          // Crear evaluación para esta sección
+          const evaluacionData = {
+            id_evaluacion: `EVAL${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            nombre_evaluacion: nombreEvaluacion,
+            tipo_evaluacion: tipoEvaluacion,
+            lapsop_id: lapsoId,
+            materia_id: materiaId,
+            seccion_id: seccionId,
+            periodo_escolar_id: periodoEscolarId,
+            docente_id: user?.uid || "",
+            criterios: criteriosFinales,
+            nota_definitiva: 20,
+            porcentaje: porcentaje,
+            fecha: format(fecha, "yyyy-MM-dd"),
+            status: "POR EVALUAR",
+            createdAt: serverTimestamp(),
+          };
+
+          console.log(`💾 Guardando evaluación para sección ${seccionId}`, evaluacionData);
+          await addDocument("evaluaciones", evaluacionData);
+          evaluacionesCreadas++;
+          console.log(`✅ Evaluación ${evaluacionesCreadas} creada exitosamente`);
+
+          // Pequeña pausa para evitar conflictos de timestamp
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+
+        console.log("🏁 FIN - Creación múltiple", {
+          totalCreadas: evaluacionesCreadas,
+          totalSeleccionadas: seccionesIds.length
+        });
+
+        if (evaluacionesCreadas > 0) {
+          showToast.success(`${evaluacionesCreadas} evaluación(es) creada(s) exitosamente`);
+        } else {
+          showToast.error("No se pudo crear ninguna evaluación. Todas las secciones ya tienen evaluaciones programadas para esta fecha.");
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       onEvaluacionCreada();
@@ -451,7 +488,7 @@ export function CrearEvaluacionDialog({
     setTipoEvaluacion("");
     setLapsoId("");
     setMateriaId("");
-    setSeccionId("");
+    setSeccionesIds([]);
     setPeriodoEscolarId("");
     setFecha(undefined);
     setPorcentaje(0);
@@ -553,7 +590,7 @@ export function CrearEvaluacionDialog({
                 value={materiaId}
                 onValueChange={(value) => {
                   setMateriaId(value);
-                  setSeccionId(""); // Limpiar sección al cambiar materia
+                  setSeccionesIds([]); // Limpiar secciones al cambiar materia
                 }}
                 disabled={loadingMaterias || materias.length === 0}
               >
@@ -578,32 +615,100 @@ export function CrearEvaluacionDialog({
 
             <div className="space-y-2">
               <Label htmlFor="seccionId">
-                Sección <span className="text-red-500">*</span>
+                Sección{!isEditing && "(es)"} <span className="text-red-500">*</span>
               </Label>
-              <Select
-                value={seccionId}
-                onValueChange={setSeccionId}
-                disabled={!materiaId || loadingSecciones || secciones.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={
-                    !materiaId
-                      ? "Primero selecciona una materia"
-                      : loadingSecciones
-                        ? "Cargando secciones..."
-                        : secciones.length === 0
-                          ? "No hay secciones disponibles"
-                          : "Selecciona una sección"
-                  } />
-                </SelectTrigger>
-                <SelectContent>
-                  {secciones.map((seccion) => (
-                    <SelectItem key={seccion.seccion_id} value={seccion.seccion_id}>
-                      {seccion.grado_año} {seccion.nivel_educativo} "{seccion.seccion}"{seccion.turno ? ` ${seccion.turno}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {isEditing ? (
+                // Modo edición: Solo mostrar la sección actual (deshabilitado)
+                <Select
+                  value={seccionesIds[0] || ""}
+                  disabled={true}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sección seleccionada" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {secciones.map((seccion) => (
+                      <SelectItem key={seccion.seccion_id} value={seccion.seccion_id}>
+                        {seccion.grado_año} {seccion.nivel_educativo} "{seccion.seccion}"{seccion.turno ? ` ${seccion.turno}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                // Modo creación: Multi-select con checkboxes
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className={cn(
+                        "w-full justify-between",
+                        seccionesIds.length === 0 && "text-muted-foreground"
+                      )}
+                      disabled={!materiaId || loadingSecciones || secciones.length === 0}
+                      onClick={() => {
+                        console.log("🔍 DEBUG - Selector clicked", {
+                          materiaId,
+                          loadingSecciones,
+                          seccionesCount: secciones.length,
+                          secciones,
+                          isDisabled: !materiaId || loadingSecciones || secciones.length === 0
+                        });
+                      }}
+                    >
+                      {seccionesIds.length === 0
+                        ? !materiaId
+                          ? "Primero selecciona una materia"
+                          : loadingSecciones
+                            ? "Cargando secciones..."
+                            : secciones.length === 0
+                              ? "No hay secciones disponibles"
+                              : "Selecciona sección(es)"
+                        : `${seccionesIds.length} sección(es) seleccionada(s)`}
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[400px] p-0" align="start">
+                    <div className="max-h-64 overflow-auto p-2">
+                      {secciones.map((seccion) => {
+                        const isSelected = seccionesIds.includes(seccion.seccion_id);
+                        return (
+                          <div
+                            key={seccion.seccion_id}
+                            className={cn(
+                              "flex items-center space-x-2 rounded-sm px-2 py-1.5 cursor-pointer hover:bg-accent",
+                              isSelected && "bg-accent"
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              console.log("🖱️ DEBUG - Checkbox clicked", {
+                                seccionId: seccion.seccion_id,
+                                isSelected,
+                                currentSelection: seccionesIds
+                              });
+                              if (isSelected) {
+                                setSeccionesIds(seccionesIds.filter(id => id !== seccion.seccion_id));
+                              } else {
+                                setSeccionesIds([...seccionesIds, seccion.seccion_id]);
+                              }
+                            }}
+                          >
+                            <div className={cn(
+                              "flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                              isSelected ? "bg-primary text-primary-foreground" : "opacity-50"
+                            )}>
+                              {isSelected && <Check className="h-3 w-3" />}
+                            </div>
+                            <span className="text-sm">
+                              {seccion.grado_año} {seccion.nivel_educativo} "{seccion.seccion}"{seccion.turno ? ` ${seccion.turno}` : ""}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
           </div>
 

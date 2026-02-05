@@ -1,31 +1,454 @@
 "use client";
 
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Estudiantes } from "@/interfaces/estudiantes.interface";
 import type { Representante } from "@/interfaces/representante.interface";
-import { getCollection } from "@/lib/data/firebase";
+import { db, getCollection } from "@/lib/data/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { FileText } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { showToast } from "nextjs-toast-notify";
 import { PDFDocument, PDFPage, rgb, StandardFonts } from "pdf-lib";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export const GenerateStudentReport = () => {
   const [loading, setLoading] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [isCompleteReport, setIsCompleteReport] = useState(false);
+
+  // Data States
+  const [periodos, setPeriodos] = useState<{ id: string; periodo: string; status: string }[]>([]);
+  const [allSecciones, setAllSecciones] = useState<any[]>([]);
+  
+  // Selection States
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState("");
+  const [nivelEducativoSeleccionado, setNivelEducativoSeleccionado] = useState("");
+  const [gradoAnioSeleccionado, setGradoAnioSeleccionado] = useState("");
+  const [seccionSeleccionada, setSeccionSeleccionada] = useState("");
+
+  // Derived Options
+  const [nivelesEducativos, setNivelesEducativos] = useState<string[]>([]);
+  const [gradosAnios, setGradosAnios] = useState<string[]>([]);
+  const [seccionesDisponibles, setSeccionesDisponibles] = useState<any[]>([]);
+
+  // 1. Load Periods when dialog opens
+  useEffect(() => {
+    if (open && periodos.length === 0) {
+      const cargarPeriodos = async () => {
+        setLoading(true);
+        try {
+          const q = collection(db, "periodos_escolares");
+          const snapshot = await getDocs(q);
+          const data = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...(doc.data() as { periodo: string; status: string })
+          }));
+          setPeriodos(data);
+          
+          const activo = data.find(p => p.status === "ACTIVO");
+          if (activo) setPeriodoSeleccionado(activo.id);
+        } catch (error) {
+          console.error("Error loading periods:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      cargarPeriodos();
+    }
+  }, [open]);
+
+  // 2. Load Sections for selected period
+  useEffect(() => {
+    if (!periodoSeleccionado) return;
+
+    const cargarSeccionesPeriodo = async () => {
+      setLoading(true);
+      try {
+        const q = query(collection(db, "secciones"), where("id_periodo_escolar", "==", periodoSeleccionado));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setAllSecciones(data);
+
+        // Reset selections
+        setNivelEducativoSeleccionado("");
+        setGradoAnioSeleccionado("");
+        setSeccionSeleccionada("");
+      } catch (error) {
+        console.error("Error loading sections:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    cargarSeccionesPeriodo();
+  }, [periodoSeleccionado]);
+
+  // 3. Update Niveles based on AllSecciones
+  useEffect(() => {
+    if (allSecciones.length > 0) {
+      const niveles = [...new Set(allSecciones.map(s => s.nivel_educativo))];
+      setNivelesEducativos(niveles);
+    } else {
+      setNivelesEducativos([]);
+    }
+  }, [allSecciones]);
+
+  // 4. Update Grados based on Nivel
+  useEffect(() => {
+    if (nivelEducativoSeleccionado && allSecciones.length > 0) {
+      const grados = [...new Set(
+        allSecciones
+          .filter(s => s.nivel_educativo === nivelEducativoSeleccionado)
+          .map(s => s.grado_año)
+      )].sort((a, b) => parseInt(a) - parseInt(b));
+      setGradosAnios(grados);
+      setGradoAnioSeleccionado("");
+      setSeccionSeleccionada("");
+    } else {
+      setGradosAnios([]);
+    }
+  }, [nivelEducativoSeleccionado, allSecciones]);
+
+  // 5. Update Sections based on Grado
+  useEffect(() => {
+    if (gradoAnioSeleccionado && nivelEducativoSeleccionado && allSecciones.length > 0) {
+      const filtered = allSecciones.filter(
+        s => s.nivel_educativo === nivelEducativoSeleccionado && s.grado_año === gradoAnioSeleccionado
+      );
+      setSeccionesDisponibles(filtered);
+      setSeccionSeleccionada("");
+    } else {
+      setSeccionesDisponibles([]);
+    }
+  }, [gradoAnioSeleccionado, nivelEducativoSeleccionado, allSecciones]);
 
   const generarReporteEstudiantes = async () => {
+    if (isCompleteReport) {
+      await generateCompleteReport();
+    } else {
+      await generateSimpleReport();
+    }
+  };
+
+  const generateSimpleReport = async () => {
+    try {
+      setLoading(true);
+      
+      // 1. Fetch Students and Enrollments
+      const [estudiantesDocs, inscripcionesDocs] = await Promise.all([
+        getCollection("estudiantes") as Promise<Estudiantes[]>,
+        getCollection("estudiantes_inscritos") as Promise<any[]>
+      ]);
+
+      // 2. Filter Active Enrollments
+      const activeStudentIds = new Set(
+        inscripcionesDocs
+          .filter(i => (i.estado || "").toLowerCase() === "activo")
+          .map(i => i.id_estudiante)
+      );
+
+      // 3. Filter and Sort Students
+      const docs = estudiantesDocs.filter(est => activeStudentIds.has(est.id));
+      let allEstudiantes = docs.sort((a, b) => Number(a.cedula) - Number(b.cedula));
+
+      // 4. Filter by Section if selected
+      if (seccionSeleccionada) {
+        if (seccionSeleccionada === "TODAS") {
+          // Filter by all sections of the selected grade
+          const seccionIds = seccionesDisponibles.map(s => s.id);
+          const estudiantesEnGrado = inscripcionesDocs
+            .filter(i => seccionIds.includes(i.id_seccion) && i.estado?.toLowerCase() === "activo")
+            .map(i => i.id_estudiante);
+          
+          allEstudiantes = allEstudiantes.filter(est => estudiantesEnGrado.includes(est.id));
+        } else {
+          // Find the section ID from the selected seccion value
+          const seccionData = seccionesDisponibles.find(s => s.seccion === seccionSeleccionada);
+          if (seccionData) {
+            const estudiantesEnSeccion = inscripcionesDocs
+              .filter(i => i.id_seccion === seccionData.id && i.estado?.toLowerCase() === "activo")
+              .map(i => i.id_estudiante);
+            
+            allEstudiantes = allEstudiantes.filter(est => estudiantesEnSeccion.includes(est.id));
+          }
+        }
+      }
+
+      if (allEstudiantes.length === 0) {
+        showToast.error("No hay estudiantes activos para generar el reporte");
+        setLoading(false);
+        return;
+      }
+
+      // Calculate totals
+      const totalMasculino = allEstudiantes.filter(e => e.sexo === "MASCULINO").length;
+      const totalFemenino = allEstudiantes.filter(e => e.sexo === "FEMENINO").length;
+
+      // ===== PDF GENERATION (A4 VERTICAL - ORIGINAL FORMAT) =====
+      const pdfDoc = await PDFDocument.create();
+      const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+      // Load logos
+      const logo1Bytes = await fetch("/Logo1.png").then((res) => res.arrayBuffer());
+      const logo2Bytes = await fetch("/Logo2.png").then((res) => res.arrayBuffer());
+      const logo3Bytes = await fetch("/LOGO-COLEGIO.png").then((res) => res.arrayBuffer());
+
+      const logo1Img = await pdfDoc.embedPng(logo1Bytes);
+      const logo2Img = await pdfDoc.embedPng(logo2Bytes);
+      const logo3Img = await pdfDoc.embedPng(logo3Bytes);
+
+      // Page dimensions and table setup
+      const pageWidth = 595.28;   // A4 width
+      const pageHeight = 841.89;  // A4 height
+      const margenIzquierdo = 50;
+      const anchoColumna1 = 40;   // N°
+      const anchoColumna2 = 100;  // CÉDULA
+      const anchoTotal = 500;
+      const anchoColumnaNombres = anchoTotal - anchoColumna1 - anchoColumna2; // 360
+      const lineHeight = 15;
+      const bottomMargin = 50;
+
+      let currentPage: PDFPage | null = null;
+      let currentY = 0;
+      let pageStartY = 0;
+
+      const addNewPage = () => {
+        const page = pdfDoc.addPage([pageWidth, pageHeight]);
+        const { width, height } = page.getSize();
+
+        // Logos
+        const yLogos = height - 110;
+        page.drawImage(logo1Img, { x: 60, y: yLogos, width: 75, height: 65 });
+        page.drawImage(logo2Img, { x: width / 2 - 95, y: yLogos, width: 180, height: 45 });
+        page.drawImage(logo3Img, { x: width - 60 - 60, y: yLogos, width: 60, height: 60 });
+
+        // Title
+        const tituloTexto = "REPORTE DE ESTUDIANTES ACTIVOS";
+        const tituloWidth = helveticaBold.widthOfTextAtSize(tituloTexto, 20);
+        page.drawText(tituloTexto, {
+          x: width / 2 - tituloWidth / 2,
+          y: height - 135,
+          size: 20,
+          font: helveticaBold,
+          color: rgb(0, 0, 0.6),
+        });
+
+        // Table Header
+        const headerY = height - 160;
+
+        // Top horizontal line
+        page.drawLine({
+          start: { x: margenIzquierdo, y: headerY },
+          end: { x: margenIzquierdo + anchoTotal, y: headerY },
+          thickness: 1,
+          color: rgb(0, 0, 0)
+        });
+
+        // Bottom header line
+        page.drawLine({
+          start: { x: margenIzquierdo, y: headerY - 25 },
+          end: { x: margenIzquierdo + anchoTotal, y: headerY - 25 },
+          thickness: 1,
+          color: rgb(0, 0, 0)
+        });
+
+        // Header text
+        page.drawText("N°", {
+          x: margenIzquierdo + (anchoColumna1 / 2) - 5,
+          y: headerY - 17,
+          size: 12,
+          font: helveticaBold
+        });
+
+        page.drawText("CÉDULA", {
+          x: margenIzquierdo + anchoColumna1 + (anchoColumna2 / 2) - 25,
+          y: headerY - 17,
+          size: 12,
+          font: helveticaBold
+        });
+
+        page.drawText("APELLIDOS Y NOMBRES", {
+          x: margenIzquierdo + anchoColumna1 + anchoColumna2 + (anchoColumnaNombres / 2) - 60,
+          y: headerY - 17,
+          size: 12,
+          font: helveticaBold
+        });
+
+        return { page, currentY: headerY - 25, pageStartY: headerY };
+      };
+
+      const drawVerticalLines = (targetPage: PDFPage, startY: number, endY: number) => {
+        // Left border
+        targetPage.drawLine({
+          start: { x: margenIzquierdo, y: startY },
+          end: { x: margenIzquierdo, y: endY },
+          thickness: 1,
+          color: rgb(0, 0, 0)
+        });
+
+        // After N°
+        targetPage.drawLine({
+          start: { x: margenIzquierdo + anchoColumna1, y: startY },
+          end: { x: margenIzquierdo + anchoColumna1, y: endY },
+          thickness: 1,
+          color: rgb(0, 0, 0)
+        });
+
+        // After CÉDULA
+        targetPage.drawLine({
+          start: { x: margenIzquierdo + anchoColumna1 + anchoColumna2, y: startY },
+          end: { x: margenIzquierdo + anchoColumna1 + anchoColumna2, y: endY },
+          thickness: 1,
+          color: rgb(0, 0, 0)
+        });
+
+        // Right border
+        targetPage.drawLine({
+          start: { x: margenIzquierdo + anchoTotal, y: startY },
+          end: { x: margenIzquierdo + anchoTotal, y: endY },
+          thickness: 1,
+          color: rgb(0, 0, 0)
+        });
+      };
+
+      // Create first page
+      const firstPageData = addNewPage();
+      currentPage = firstPageData.page;
+      currentY = firstPageData.currentY;
+      pageStartY = firstPageData.pageStartY;
+
+      // Render students
+      allEstudiantes.forEach((estudiante, index) => {
+        if (currentY - lineHeight < bottomMargin) {
+          // Close current page table
+          drawVerticalLines(currentPage!, pageStartY, currentY);
+          currentPage!.drawLine({
+            start: { x: margenIzquierdo, y: currentY },
+            end: { x: margenIzquierdo + anchoTotal, y: currentY },
+            thickness: 1,
+            color: rgb(0, 0, 0)
+          });
+
+          // Create new page
+          const newPageData = addNewPage();
+          currentPage = newPageData.page;
+          currentY = newPageData.currentY;
+          pageStartY = newPageData.pageStartY;
+        }
+
+        // N°
+        const indexText = `${index + 1}`;
+        const indexWidth = helveticaFont.widthOfTextAtSize(indexText, 10);
+        currentPage!.drawText(indexText, {
+          x: margenIzquierdo + (anchoColumna1 / 2) - (indexWidth / 2),
+          y: currentY - lineHeight + 5,
+          size: 10,
+          font: helveticaFont
+        });
+
+        // CÉDULA (con tipo)
+        const cedulaText = `${estudiante.tipo_cedula || "V"}-${estudiante.cedula}`;
+        const cedulaWidth = helveticaFont.widthOfTextAtSize(cedulaText, 10);
+        currentPage!.drawText(cedulaText, {
+          x: margenIzquierdo + anchoColumna1 + (anchoColumna2 / 2) - (cedulaWidth / 2),
+          y: currentY - lineHeight + 5,
+          size: 10,
+          font: helveticaFont
+        });
+
+        // APELLIDOS Y NOMBRES
+        const nombreCompleto = `${estudiante.apellidos || ""} ${estudiante.nombres || ""}`.trim().toUpperCase();
+        currentPage!.drawText(nombreCompleto, {
+          x: margenIzquierdo + anchoColumna1 + anchoColumna2 + 10,
+          y: currentY - lineHeight + 5,
+          size: 10,
+          font: helveticaFont
+        });
+
+        currentY -= lineHeight;
+
+        // Horizontal separator line (except after last student)
+        if (index < allEstudiantes.length - 1) {
+          currentPage!.drawLine({
+            start: { x: margenIzquierdo, y: currentY },
+            end: { x: margenIzquierdo + anchoTotal, y: currentY },
+            thickness: 0.5,
+            color: rgb(0, 0, 0)
+          });
+        }
+      });
+
+      // Close final table
+      drawVerticalLines(currentPage!, pageStartY, currentY);
+      currentPage!.drawLine({
+        start: { x: margenIzquierdo, y: currentY },
+        end: { x: margenIzquierdo + anchoTotal, y: currentY },
+        thickness: 1,
+        color: rgb(0, 0, 0)
+      });
+
+      // Totals section
+      if (currentY - 60 < bottomMargin) {
+        const newPageData = addNewPage();
+        currentPage = newPageData.page;
+        currentY = pageHeight - 100;
+      }
+
+      const textoY = currentY - 20;
+      currentPage!.drawText(`Total de estudiantes: ${allEstudiantes.length}`, {
+        x: margenIzquierdo,
+        y: textoY,
+        size: 12,
+        font: helveticaBold
+      });
+      currentPage!.drawText(`Varones: ${totalMasculino}`, {
+        x: margenIzquierdo,
+        y: textoY - 15,
+        size: 12,
+        font: helveticaBold
+      });
+      currentPage!.drawText(`Hembras: ${totalFemenino}`, {
+        x: margenIzquierdo,
+        y: textoY - 30,
+        size: 12,
+        font: helveticaBold
+      });
+
+      // Save and open in browser
+      const pdfBytes = await pdfDoc.save();
+      // @ts-expect-error - pdf-lib Uint8Array type incompatible with TS Blob constructor, works fine at runtime
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      
+      // Clean up after a delay to ensure PDF opens
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      showToast.success("Reporte simple generado exitosamente");
+    } catch (error) {
+      console.error("Error generando reporte simple:", error);
+      showToast.error("Error al generar el reporte simple");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateCompleteReport = async () => {
     try {
       setLoading(true);
       
@@ -47,15 +470,42 @@ export const GenerateStudentReport = () => {
       const docs = estudiantesDocs.filter(est => activeStudentIds.has(est.id));
 
       // Ordenar por cédula en el cliente
-      const allEstudiantes = docs.sort((a, b) => {
+      let allEstudiantes = docs.sort((a, b) => {
         return Number(a.cedula) - Number(b.cedula);
       });
+
+      // 4. Filter by Section if selected
+      if (seccionSeleccionada) {
+        if (seccionSeleccionada === "TODAS") {
+          // Filter by all sections of the selected grade
+          const seccionIds = seccionesDisponibles.map(s => s.id);
+          const estudiantesEnGrado = inscripcionesDocs
+            .filter(i => seccionIds.includes(i.id_seccion) && i.estado?.toLowerCase() === "activo")
+            .map(i => i.id_estudiante);
+          
+          allEstudiantes = allEstudiantes.filter(est => estudiantesEnGrado.includes(est.id));
+        } else {
+          // Find the section ID from the selected seccion value
+          const seccionData = seccionesDisponibles.find(s => s.seccion === seccionSeleccionada);
+          if (seccionData) {
+            const estudiantesEnSeccion = inscripcionesDocs
+              .filter(i => i.id_seccion === seccionData.id && i.estado?.toLowerCase() === "activo")
+              .map(i => i.id_estudiante);
+            
+            allEstudiantes = allEstudiantes.filter(est => estudiantesEnSeccion.includes(est.id));
+          }
+        }
+      }
 
       if (allEstudiantes.length === 0) {
         showToast.warning("No hay estudiantes registrados para generar el reporte.");
         setLoading(false);
         return;
       }
+
+      // Calculate gender totals
+      const totalMasculino = allEstudiantes.filter(e => e.sexo === "MASCULINO").length;
+      const totalFemenino = allEstudiantes.filter(e => e.sexo === "FEMENINO").length;
 
       // Create a map of representatives by ID for quick lookup
       const representantesMap = new Map<string, Representante>();
@@ -86,18 +536,17 @@ export const GenerateStudentReport = () => {
       // Definir columnas con anchos optimizados para tabloid landscape
       const columns = [
         { header: "N°", width: 25 },
-        { header: "CÉDULA", width: 80 },
+        { header: "CÉDULA", width: 55 },
         { header: "NOMBRES Y APELLIDOS", width: 180 },
         { header: "SEXO", width: 30 },
-        { header: "F. NAC.", width: 65 },
+        { header: "F. NAC.", width: 55 },
         { header: "EDAD", width: 35 },
         { header: "ESTADO NAC.", width: 85 },
-        { header: "MUNICIPIO", width: 95 },
-        { header: "REPRESENTANTE", width: 150 },
-        { header: "CÉD. REP.", width: 75 },
-        { header: "PARENTESCO", width: 70 },
-        { header: "TELÉFONO", width: 75 },
-        { header: "DIRECCIÓN", width: 150 },
+        { header: "MUNICIPIO", width: 70 },
+        { header: "REPRESENTANTE", width: 120 },
+        { header: "CÉD. REP.", width: 50 },
+        { header: "TELÉFONO", width: 60 },
+        { header: "DIRECCIÓN", width: 350 },
       ];
       
       const anchoTotal = columns.reduce((sum, col) => sum + col.width, 0);
@@ -277,7 +726,6 @@ export const GenerateStudentReport = () => {
           sanitizeText(estudiante.municipio || "N/A"), // MUNICIPIO
           sanitizeText(representante ? `${representante.nombres} ${representante.apellidos}` : "N/A"), // REPRESENTANTE
           sanitizeText(representante ? `${representante.tipo_cedula}-${representante.cedula}` : "N/A"), // CÉD. REP.
-          sanitizeText(representante?.parentesco || "N/A"), // PARENTESCO
           sanitizeText(representante?.telefono_principal || "N/A"), // TELÉFONO
           sanitizeText(representante?.direccion || "N/A"), // DIRECCIÓN
         ];
@@ -337,10 +785,23 @@ export const GenerateStudentReport = () => {
         color: rgb(0, 0, 0) 
       });
 
-      // Totales
+      // Totales section
+      const textoY = currentY - 20;
       page.drawText(`Total de estudiantes: ${allEstudiantes.length}`, {
         x: margenIzquierdo,
-        y: currentY - 20,
+        y: textoY,
+        size: 10,
+        font: helveticaBold,
+      });
+      page.drawText(`Varones: ${totalMasculino}`, {
+        x: margenIzquierdo,
+        y: textoY - 15,
+        size: 10,
+        font: helveticaBold,
+      });
+      page.drawText(`Hembras: ${totalFemenino}`, {
+        x: margenIzquierdo,
+        y: textoY - 30,
         size: 10,
         font: helveticaBold,
       });
@@ -365,7 +826,7 @@ export const GenerateStudentReport = () => {
         variant="ghost"
         size="sm"
         className="relative overflow-hidden group"
-        onClick={() => setShowConfirmDialog(true)}
+        onClick={() => setOpen(true)}
         disabled={loading}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -388,29 +849,118 @@ export const GenerateStudentReport = () => {
         </div>
       </Button>
 
-      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Generar Reporte Completo de Estudiantes</AlertDialogTitle>
+            <AlertDialogTitle>Generar Reporte de Estudiantes</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Desea generar el reporte con absolutamente todos los datos de los estudiantes activos y sus representantes?
+              Selecciona los filtros (opcional) y el tipo de reporte que deseas generar.
             </AlertDialogDescription>
-            <div className="text-sm text-muted-foreground mt-3">
-              <strong>Datos del estudiante:</strong> Cédula completa, Apellidos y nombres, Sexo, Fecha de nacimiento, Edad, Lugar de nacimiento (Estado y Municipio).
-              <br />
-              <strong>Datos del representante:</strong> Nombre completo, Cédula, Parentesco, Teléfono de contacto y Dirección.
-            </div>
           </AlertDialogHeader>
+
+          {/* FILTERS SECTION */}
+          <div className="space-y-4 pb-4 border-b">
+            <h3 className="font-semibold text-sm">Filtros (Opcional - para reporte por sección)</h3>
+            
+            {/* Período */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Período Escolar</label>
+              <Select value={periodoSeleccionado} onValueChange={setPeriodoSeleccionado} disabled={loading}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione período" />
+                </SelectTrigger>
+                <SelectContent>
+                  {periodos.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.periodo} {p.status === "ACTIVO" ? "(Activo)" : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Nivel */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nivel Educativo</label>
+              <Select value={nivelEducativoSeleccionado} onValueChange={setNivelEducativoSeleccionado} disabled={!periodoSeleccionado || loading || nivelesEducativos.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione nivel" />
+                </SelectTrigger>
+                <SelectContent>
+                  {nivelesEducativos.map((nivel) => (
+                    <SelectItem key={nivel} value={nivel}>{nivel}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Grado/Año */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Grado / Año</label>
+              <Select value={gradoAnioSeleccionado} onValueChange={setGradoAnioSeleccionado} disabled={!nivelEducativoSeleccionado || loading || gradosAnios.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione grado/año" />
+                </SelectTrigger>
+                <SelectContent>
+                  {gradosAnios.map((grado) => (
+                    <SelectItem key={grado} value={grado}>{grado}°</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Sección */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Sección</label>
+              <Select value={seccionSeleccionada} onValueChange={setSeccionSeleccionada} disabled={!gradoAnioSeleccionado || loading || seccionesDisponibles.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione sección" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODAS">Todas las secciones</SelectItem>
+                  {seccionesDisponibles.map((seccion) => (
+                    <SelectItem key={seccion.id} value={seccion.seccion}>{seccion.seccion}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Report Type Selection */}
+          <div className="space-y-4 pt-4 border-t">
+            <div className="flex items-start space-x-3">
+              <Checkbox 
+                id="completeReport" 
+                checked={isCompleteReport} 
+                onCheckedChange={(checked) => setIsCompleteReport(checked === true)}
+              />
+              <div className="flex-1">
+                <Label htmlFor="completeReport" className="text-sm font-medium cursor-pointer">
+                  Generar reporte completo
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {isCompleteReport ? (
+                    <>
+                      <strong>Reporte Completo:</strong> Incluye datos del estudiante (Cédula, Nombres, Apellidos, Sexo, Fecha de nacimiento, Edad, Estado y Municipio) y del representante (Nombre, Cédula, Parentesco, Teléfono y Dirección).
+                    </>
+                  ) : (
+                    <>
+                      <strong>Reporte Simple:</strong> Incluye solo Número de orden, Cédula completa (con tipo), Apellidos y Nombres.
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction 
               onClick={() => {
-                setShowConfirmDialog(false);
+                setOpen(false);
                 generarReporteEstudiantes();
               }}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              Sí, generar reporte
+              Generar reporte
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
