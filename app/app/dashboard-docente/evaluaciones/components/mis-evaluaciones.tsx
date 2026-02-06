@@ -1,25 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Command,
   CommandEmpty,
@@ -29,37 +12,51 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Plus,
-  Calendar,
-  BookOpen,
-  Users,
-  FileText,
-  Edit,
-  Trash2,
-  Eye,
-  AlertCircle,
-  CheckCircle2,
-  Loader2,
-  Check,
-  ChevronsUpDown
-} from "lucide-react";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
+import {
+  AlertCircle,
+  Calendar,
+  Check,
+  CheckCircle2,
+  ChevronsUpDown,
+  Edit,
+  Eye,
+  FileText,
+  Loader2,
+  Plus,
+  Trash2
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { useUser } from "@/hooks/use-user";
 import { Evaluaciones } from "@/interfaces/evaluaciones.interface";
 import { LapsosEscolares } from "@/interfaces/lapsos.interface";
-import { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
 import { AsignacionDocenteMateria } from "@/interfaces/materias.interface";
+import { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { collection, doc, getDoc, getDocs, orderBy, query, where } from "firebase/firestore";
 import { CrearEvaluacionDialog } from "./crear-evaluacion-dialog";
-import { collection, query, where, getDocs, orderBy, getDoc, doc } from "firebase/firestore";
 
 import { db, deleteDocument } from "@/lib/data/firebase";
 import { showToast } from "nextjs-toast-notify";
@@ -418,14 +415,37 @@ export function MisEvaluaciones() {
   );
 
   // Estadísticas por lapso
-  const estadisticasLapso = {
-    total: evaluacionesFiltradas.length,
-    evaluadas: evaluacionesFiltradas.filter((ev) => ev.status === "EVALUADA").length,
-    porEvaluar: evaluacionesFiltradas.filter((ev) => ev.status === "POR EVALUAR").length,
-    ponderacionTotal: evaluacionesFiltradas.reduce((sum, ev) => {
-      return sum + ev.criterios.reduce((criterioSum, c) => criterioSum + c.ponderacion, 0);
-    }, 0),
-  };
+  const estadisticasLapso = (() => {
+    const total = evaluacionesFiltradas.length;
+    const evaluadas = evaluacionesFiltradas.filter((ev) => ev.status === "EVALUADA").length;
+    const porEvaluar = evaluacionesFiltradas.filter((ev) => ev.status === "POR EVALUAR").length;
+    
+    // Calcular porcentaje según el filtro de materia
+    let porcentajeCalculado = 0;
+    let descripcionPorcentaje = "";
+    
+    if (total > 0) {
+      const sumaPorcentajes = evaluacionesFiltradas.reduce((sum, ev) => sum + (ev.porcentaje || 0), 0);
+      
+      if (materiaFiltro === "todas") {
+        // Sin filtro de materia: mostrar PROMEDIO
+        porcentajeCalculado = Math.round(sumaPorcentajes / total);
+        descripcionPorcentaje = "Promedio de todas las evaluaciones";
+      } else {
+        // Con filtro de materia: mostrar SUMATORIA
+        porcentajeCalculado = sumaPorcentajes;
+        descripcionPorcentaje = "Sumatoria de la materia seleccionada";
+      }
+    }
+    
+    return {
+      total,
+      evaluadas,
+      porEvaluar,
+      porcentajeCalculado,
+      descripcionPorcentaje
+    };
+  })();
 
   // Obtener nombres para mostrar en estadísticas
   const periodoActualNombre = periodosEscolares.find(p => p.id === periodoSeleccionado)?.periodo || '';
@@ -492,13 +512,13 @@ export function MisEvaluaciones() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ponderación Total</CardTitle>
+            <CardTitle className="text-sm font-medium">Porcentaje Total</CardTitle>
             <Calendar className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{estadisticasLapso.ponderacionTotal} pts</div>
+            <div className="text-2xl font-bold">{estadisticasLapso.porcentajeCalculado}%</div>
             <p className="text-xs text-muted-foreground">
-              Suma de todas las evaluaciones
+              {estadisticasLapso.descripcionPorcentaje}
             </p>
           </CardContent>
         </Card>
@@ -763,7 +783,7 @@ export function MisEvaluaciones() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Tipo</p>
                     <p className="font-medium capitalize">{evaluacion.tipo_evaluacion}</p>
@@ -782,6 +802,10 @@ export function MisEvaluaciones() {
                   <div>
                     <p className="text-sm text-muted-foreground">Nota Definitiva</p>
                     <p className="font-medium">{evaluacion.nota_definitiva} pts</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Porcentaje</p>
+                    <p className="font-medium">{evaluacion.porcentaje}%</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Lapso</p>

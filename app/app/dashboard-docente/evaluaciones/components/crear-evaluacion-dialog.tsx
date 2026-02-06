@@ -318,6 +318,38 @@ export function CrearEvaluacionDialog({
           ? criterios
           : [{ nro_criterio: "1", nombre: "Criterio Único", ponderacion: 20 }];
 
+        // Validar duplicidad si cambió la sección, materia o fecha
+        const cambioSeccion = seccionesIds[0] !== evaluacionToEdit.seccion_id;
+        const cambioMateria = materiaId !== evaluacionToEdit.materia_id;
+        const cambioFecha = format(fecha, "yyyy-MM-dd") !== evaluacionToEdit.fecha;
+
+        if (cambioSeccion || cambioMateria || cambioFecha) {
+          const evaluacionesRef = collection(db, "evaluaciones");
+          const qDuplicados = query(
+            evaluacionesRef,
+            where("seccion_id", "==", seccionesIds[0]),
+            where("materia_id", "==", materiaId),
+            where("fecha", "==", format(fecha, "yyyy-MM-dd"))
+          );
+
+          const duplicadosSnapshot = await getDocs(qDuplicados);
+          
+          // Filtrar para excluir la evaluación actual
+          const duplicados = duplicadosSnapshot.docs.filter(doc => doc.id !== evaluacionToEdit.id);
+
+          if (duplicados.length > 0) {
+            const seccionNombre = secciones.find(s => s.seccion_id === seccionesIds[0]);
+            const materiaNombre = materias.find(m => m.materia_id === materiaId);
+            const nombreCorto = seccionNombre 
+              ? `${seccionNombre.grado_año} "${seccionNombre.seccion}"`
+              : `Sección ${seccionesIds[0]}`;
+            
+            showToast.error(`Ya existe una evaluación de ${materiaNombre?.materia_nombre || 'esta materia'} para ${nombreCorto} en esta fecha.`);
+            setIsSubmitting(false);
+            return;
+          }
+        }
+
         const evaluacionData = {
           nombre_evaluacion: nombreEvaluacion,
           tipo_evaluacion: tipoEvaluacion,
@@ -343,6 +375,8 @@ export function CrearEvaluacionDialog({
               nombre_evaluacion: evaluacionToEdit.nombre_evaluacion,
               tipo_evaluacion: evaluacionToEdit.tipo_evaluacion,
               fecha: evaluacionToEdit.fecha,
+              seccion_id: evaluacionToEdit.seccion_id,
+              materia_id: evaluacionToEdit.materia_id,
               criterios: evaluacionToEdit.criterios,
               nota_definitiva: evaluacionToEdit.nota_definitiva
             }
@@ -375,24 +409,26 @@ export function CrearEvaluacionDialog({
         for (const seccionId of seccionesIds) {
           console.log(`📝 Procesando sección: ${seccionId}`);
           
-          // Validar duplicidad para esta sección específica
+          // Validar duplicidad para esta sección específica + materia + fecha
           const qDuplicados = query(
             evaluacionesRef,
             where("seccion_id", "==", seccionId),
+            where("materia_id", "==", materiaId),
             where("fecha", "==", format(fecha, "yyyy-MM-dd"))
           );
 
           const duplicadosSnapshot = await getDocs(qDuplicados);
 
           if (duplicadosSnapshot.docs.length > 0) {
-            // Obtener nombre de la sección para el mensaje
+            // Obtener nombre de la sección y materia para el mensaje
             const seccionNombre = secciones.find(s => s.seccion_id === seccionId);
+            const materiaNombre = materias.find(m => m.materia_id === materiaId);
             const nombreCorto = seccionNombre 
               ? `${seccionNombre.grado_año} "${seccionNombre.seccion}"`
               : `Sección ${seccionId}`;
             
-            console.log(`⚠️ DUPLICADO encontrado para ${nombreCorto}`);
-            showToast.warning(`Ya existe una evaluación para ${nombreCorto} en esta fecha. Se omitió esta sección.`);
+            console.log(`⚠️ DUPLICADO encontrado para ${nombreCorto} - ${materiaNombre?.materia_nombre}`);
+            showToast.warning(`Ya existe una evaluación de ${materiaNombre?.materia_nombre || 'esta materia'} para ${nombreCorto} en esta fecha. Se omitió esta sección.`);
             continue; // Saltar esta sección y continuar con la siguiente
           }
 
@@ -618,13 +654,20 @@ export function CrearEvaluacionDialog({
                 Sección{!isEditing && "(es)"} <span className="text-red-500">*</span>
               </Label>
               {isEditing ? (
-                // Modo edición: Solo mostrar la sección actual (deshabilitado)
+                // Modo edición: Permitir cambiar la sección
                 <Select
                   value={seccionesIds[0] || ""}
-                  disabled={true}
+                  onValueChange={(value) => setSeccionesIds([value])}
+                  disabled={loadingSecciones || secciones.length === 0}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sección seleccionada" />
+                    <SelectValue placeholder={
+                      loadingSecciones
+                        ? "Cargando secciones..."
+                        : secciones.length === 0
+                          ? "No hay secciones disponibles"
+                          : "Selecciona una sección"
+                    } />
                   </SelectTrigger>
                   <SelectContent>
                     {secciones.map((seccion) => (
