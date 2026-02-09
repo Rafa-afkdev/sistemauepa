@@ -42,8 +42,8 @@ export const GenerateSectionReport = () => {
   // Selection States
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState("");
   const [nivelEducativoSeleccionado, setNivelEducativoSeleccionado] = useState("");
-  const [gradoAnioSeleccionado, setGradoAnioSeleccionado] = useState("");
-  const [seccionSeleccionada, setSeccionSeleccionada] = useState("");
+  const [gradosAniosSeleccionados, setGradosAniosSeleccionados] = useState<string[]>([]);
+  const [seccionesSeleccionadasIds, setSeccionesSeleccionadasIds] = useState<string[]>([]);
 
   // Derived Options (calculated from allSecciones)
   const [nivelesEducativos, setNivelesEducativos] = useState<string[]>([]);
@@ -90,8 +90,8 @@ export const GenerateSectionReport = () => {
 
         // Reset selections
         setNivelEducativoSeleccionado("");
-        setGradoAnioSeleccionado("");
-        setSeccionSeleccionada("");
+        setGradosAniosSeleccionados([]);
+        setSeccionesSeleccionadasIds([]);
       } catch (error) {
         console.error("Error cargando secciones:", error);
       } finally {
@@ -121,25 +121,25 @@ export const GenerateSectionReport = () => {
           .map(s => s.grado_año)
       )].sort((a, b) => parseInt(a) - parseInt(b));
       setGradosAnios(grados);
-      setGradoAnioSeleccionado("");
-      setSeccionSeleccionada("");
+      setGradosAniosSeleccionados([]);
+      setSeccionesSeleccionadasIds([]);
     } else {
       setGradosAnios([]);
     }
   }, [nivelEducativoSeleccionado, allSecciones]);
 
-  // 5. Update Sections based on Grado
+  // 5. Update Sections based on selected Grados
   useEffect(() => {
-    if (gradoAnioSeleccionado && nivelEducativoSeleccionado && allSecciones.length > 0) {
+    if (gradosAniosSeleccionados.length > 0 && nivelEducativoSeleccionado && allSecciones.length > 0) {
       const filtered = allSecciones.filter(
-        s => s.nivel_educativo === nivelEducativoSeleccionado && s.grado_año === gradoAnioSeleccionado
+        s => s.nivel_educativo === nivelEducativoSeleccionado && gradosAniosSeleccionados.includes(s.grado_año)
       );
       setSeccionesDisponibles(filtered);
-      setSeccionSeleccionada("");
+      setSeccionesSeleccionadasIds([]);
     } else {
       setSeccionesDisponibles([]);
     }
-  }, [gradoAnioSeleccionado, nivelEducativoSeleccionado, allSecciones]);
+  }, [gradosAniosSeleccionados, nivelEducativoSeleccionado, allSecciones]);
 
   const calculateAge = (fechaNacimiento: string | undefined) => {
     if (!fechaNacimiento) return "N/A";
@@ -152,55 +152,30 @@ export const GenerateSectionReport = () => {
   };
 
   const generarReporte = async () => {
-    if (!seccionSeleccionada) return;
+    if (seccionesSeleccionadasIds.length === 0) return;
 
     try {
       setGenerating(true);
-      const seccionData = seccionesDisponibles.find(s => s.seccion === seccionSeleccionada);
       
-      if (!seccionData || !seccionData.estudiantes_ids || seccionData.estudiantes_ids.length === 0) {
-        showToast.warning("La sección seleccionada no tiene estudiantes inscritos.");
-        setGenerating(false);
-        return;
-      }
-
-      // Fetch Estudiantes
-      const estudiantesPromises = seccionData.estudiantes_ids.map(async (estudianteId: string) => {
-        try {
-          const docRef = doc(db, "estudiantes", estudianteId);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-             return { id: docSnap.id, ...docSnap.data() };
-          }
-          return null;
-        } catch (e) {
-          console.error(`Error loading student ${estudianteId}`, e);
-          return null;
-        }
-      });
-
-      const estudiantesRaw = await Promise.all(estudiantesPromises);
-      const estudiantesData: any[] = estudiantesRaw.filter(e => e !== null);
-      
-      // Sort by Cedula
-      estudiantesData.sort((a, b) => parseInt(a.cedula, 10) - parseInt(b.cedula, 10));
-
-       // --- GENERATE PDF START ---
+      // Create a single PDF document for all sections
       const pdfDoc = await PDFDocument.create();
       const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
+      // Load images once for reuse
+      const logo1Bytes = await fetch("/Logo1.png").then((res) => res.arrayBuffer());
+      const logo2Bytes = await fetch("/Logo2.png").then((res) => res.arrayBuffer());
+      const logo3Bytes = await fetch("/Logo-COLEGIO.png").then((res) => res.arrayBuffer());
+
+      const logo1Img = await pdfDoc.embedPng(logo1Bytes);
+      const logo2Img = await pdfDoc.embedPng(logo2Bytes);
+      const logo3Img = await pdfDoc.embedPng(logo3Bytes);
+
       const margenIzquierdo = 50;
       const anchoColumna1 = 40;  // Columna N°
       const anchoColumna2 = 100; // Columna CÉDULA
-      const anchoColumnaEdad = 60; // Columna EDAD (Nueva) - Increased from 40
-      const anchoTotal = 500;    // Ancho total de la tabla
-      
-      // Ajustar ancho columna nombres dependiendo de si mostramos edad o no
-      // Original: anchoColumna1 + anchoColumna2 + 90 (approx text pos) -> Remaining width logic
-      // Total Width = 500.
-      // Without Age: Name Width = 500 - 40 - 100 = 360
-      // With Age: Name Width = 500 - 40 - 100 - 60 = 300
+      const anchoColumnaEdad = 60; // Columna EDAD
+      const anchoTotal = 500;
       
       const anchoColumnaNombres = includeAge 
           ? anchoTotal - anchoColumna1 - anchoColumna2 - anchoColumnaEdad 
@@ -208,155 +183,178 @@ export const GenerateSectionReport = () => {
 
       const lineHeight = 15;
       const bottomMargin = 50;
+
+      let sectionsProcessed = 0;
       
-       // Cargar imágenes una sola vez
-      const logo1Bytes = await fetch("/Logo1.png").then((res) => res.arrayBuffer());
-      const logo2Bytes = await fetch("/Logo2.png").then((res) => res.arrayBuffer());
-      const logo3Bytes = await fetch("/LOGO-COLEGIO.png").then((res) => res.arrayBuffer());
-
-      const logo1Img = await pdfDoc.embedPng(logo1Bytes);
-      const logo2Img = await pdfDoc.embedPng(logo2Bytes);
-      const logo3Img = await pdfDoc.embedPng(logo3Bytes);
-
-      const totalMasculino = estudiantesData.filter(e => e.sexo === "MASCULINO").length;
-      const totalFemenino = estudiantesData.filter(e => e.sexo === "FEMENINO").length;
-
-      // Helper page functions
-      const addNewPage = () => {
-        const page = pdfDoc.addPage([595.28, 841.89]);
-        const { width, height } = page.getSize();
+      // Process each selected section
+      for (const seccionId of seccionesSeleccionadasIds) {
+        const seccionData = seccionesDisponibles.find(s => s.id === seccionId);
         
-        // Logos
-        const yLogos = height - 110;
-        page.drawImage(logo1Img, { x: 60, y: yLogos, width: 75, height: 65 });
-        page.drawImage(logo2Img, { x: width / 2 - 95, y: yLogos, width: 180, height: 45 });
-        page.drawImage(logo3Img, { x: width - 60 - 60, y: yLogos, width: 60, height: 60 });
+        if (!seccionData || !seccionData.estudiantes_ids || seccionData.estudiantes_ids.length === 0) {
+          showToast.warning(`La sección ${seccionData?.seccion || ''} del grado ${seccionData?.grado_año || ''}° no tiene estudiantes inscritos.`);
+          continue;
+        }
 
-        // Título
-        const tituloTexto = `${gradoAnioSeleccionado} ${nivelEducativoSeleccionado} Sección "${seccionSeleccionada}"`;
-        const tituloWidth = helveticaBold.widthOfTextAtSize(tituloTexto, 20);
-        page.drawText(tituloTexto, {
-            x: width / 2 - tituloWidth / 2,
-            y: height - 135,
-            size: 20,
-            font: helveticaBold,
-            color: rgb(0, 0, 0.6),
+        sectionsProcessed++;
+
+        // Fetch students for this section
+        const estudiantesPromises = seccionData.estudiantes_ids.map(async (estudianteId: string) => {
+          try {
+            const docRef = doc(db, "estudiantes", estudianteId);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+               return { id: docSnap.id, ...docSnap.data() };
+            }
+            return null;
+          } catch (e) {
+            console.error(`Error loading student ${estudianteId}`, e);
+            return null;
+          }
         });
 
-        // Header Table
-        const headerY = height - 160;
+        const estudiantesRaw = await Promise.all(estudiantesPromises);
+        const estudiantesData: any[] = estudiantesRaw.filter(e => e !== null);
         
-        // Lines
-        page.drawLine({ start: { x: margenIzquierdo, y: headerY }, end: { x: margenIzquierdo + anchoTotal, y: headerY }, thickness: 1, color: rgb(0, 0, 0) });
-        page.drawLine({ start: { x: margenIzquierdo, y: headerY - 25 }, end: { x: margenIzquierdo + anchoTotal, y: headerY - 25 }, thickness: 1, color: rgb(0, 0, 0) });
-        
-        // Text Headers
-        page.drawText("N°", { x: margenIzquierdo + (anchoColumna1 / 2) - 5, y: headerY - 17, size: 12, font: helveticaBold });
-        page.drawText("CÉDULA", { x: margenIzquierdo + anchoColumna1 + (anchoColumna2 / 2) - 25, y: headerY - 17, size: 12, font: helveticaBold });
-        
-        // Dynamic Header Positioning
-        const nombresHeaderX = margenIzquierdo + anchoColumna1 + anchoColumna2 + (anchoColumnaNombres / 2) - 60; // Approximate centering
-        page.drawText("APELLIDOS Y NOMBRES", { x: nombresHeaderX, y: headerY - 17, size: 12, font: helveticaBold });
+        // Sort by Cedula
+        estudiantesData.sort((a, b) => parseInt(a.cedula, 10) - parseInt(b.cedula, 10));
 
-        if (includeAge) {
-             const edadTextWidth = helveticaBold.widthOfTextAtSize("EDAD", 12);
-             const edadHeaderX = margenIzquierdo + anchoColumna1 + anchoColumna2 + anchoColumnaNombres + (anchoColumnaEdad / 2) - (edadTextWidth / 2);
-             page.drawText("EDAD", { x: edadHeaderX, y: headerY - 17, size: 12, font: helveticaBold });
-        }
-        
-        return { page, currentY: headerY - 25 };
-      };
+        const totalMasculino = estudiantesData.filter(e => e.sexo === "MASCULINO").length;
+        const totalFemenino = estudiantesData.filter(e => e.sexo === "FEMENINO").length;
 
-      let { page, currentY } = addNewPage();
-      const { height: pageHeight } = page.getSize();
-      const initialHeaderY = pageHeight - 160;
-
-      const drawVerticalLines = (targetPage: PDFPage, startY: number, endY: number) => {
-        // Line 1: Left
-        targetPage.drawLine({ start: { x: margenIzquierdo, y: startY }, end: { x: margenIzquierdo, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
-        // Line 2: After N°
-        targetPage.drawLine({ start: { x: margenIzquierdo + anchoColumna1, y: startY }, end: { x: margenIzquierdo + anchoColumna1, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
-        // Line 3: After Cedula
-        targetPage.drawLine({ start: { x: margenIzquierdo + anchoColumna1 + anchoColumna2, y: startY }, end: { x: margenIzquierdo + anchoColumna1 + anchoColumna2, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
-        
-        if (includeAge) {
-             // Line 4: After Nombres (Before Age)
-             targetPage.drawLine({ start: { x: margenIzquierdo + anchoColumna1 + anchoColumna2 + anchoColumnaNombres, y: startY }, end: { x: margenIzquierdo + anchoColumna1 + anchoColumna2 + anchoColumnaNombres, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
-             // Line 5: Right End (After Age)
-             targetPage.drawLine({ start: { x: margenIzquierdo + anchoTotal, y: startY }, end: { x: margenIzquierdo + anchoTotal, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
-        } else {
-             // Line 4: Right End (After Nombres)
-             targetPage.drawLine({ start: { x: margenIzquierdo + anchoTotal, y: startY }, end: { x: margenIzquierdo + anchoTotal, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
-        }
-      };
-
-      let pageStartY = initialHeaderY;
-
-      estudiantesData.forEach((estudiante, index) => {
-         if (currentY - lineHeight < bottomMargin) {
-             drawVerticalLines(page, pageStartY, currentY);
-             page.drawLine({ start: { x: margenIzquierdo, y: currentY }, end: { x: margenIzquierdo + anchoTotal, y: currentY }, thickness: 1, color: rgb(0, 0, 0) });
-             
-             const newPageData = addNewPage();
-             page = newPageData.page;
-             currentY = newPageData.currentY;
-             const { height } = page.getSize();
-             pageStartY = height - 160;
-         }
-
-          const indexText = `${index + 1}`;
-          const indexWidth = helveticaFont.widthOfTextAtSize(indexText, 12);
-          const cedulaText = `${estudiante.cedula}`;
-          const cedulaWidth = helveticaFont.widthOfTextAtSize(cedulaText, 12);
+        // Helper function to add a new page for this section
+        const addNewPage = () => {
+          const page = pdfDoc.addPage([595.28, 841.89]);
+          const { width, height } = page.getSize();
           
-          // Draw Row Content
-          page.drawText(indexText, { x: margenIzquierdo + (anchoColumna1 / 2) - (indexWidth / 2), y: currentY - lineHeight + 5, size: 10, font: helveticaFont });
-          page.drawText(cedulaText, { x: margenIzquierdo + anchoColumna1 + (anchoColumna2 / 2) - (cedulaWidth / 2), y: currentY - lineHeight + 5, size: 10, font: helveticaFont });
-          page.drawText(`${estudiante.apellidos} ${estudiante.nombres}`.toUpperCase(), { x: margenIzquierdo + anchoColumna1 + anchoColumna2 + 10, y: currentY - lineHeight + 5, size: 10, font: helveticaFont });
+          // Logos
+          const yLogos = height - 110;
+          page.drawImage(logo1Img, { x: 60, y: yLogos, width: 75, height: 65 });
+          page.drawImage(logo2Img, { x: width / 2 - 95, y: yLogos, width: 180, height: 45 });
+          page.drawImage(logo3Img, { x: width - 60 - 60, y: yLogos, width: 60, height: 60 });
+
+          // Título
+          const tituloTexto = `${seccionData.grado_año}° ${nivelEducativoSeleccionado} Sección "${seccionData.seccion}"`;
+          const tituloWidth = helveticaBold.widthOfTextAtSize(tituloTexto, 20);
+          page.drawText(tituloTexto, {
+              x: width / 2 - tituloWidth / 2,
+              y: height - 135,
+              size: 20,
+              font: helveticaBold,
+              color: rgb(0, 0, 0.6),
+          });
+
+          // Header Table
+          const headerY = height - 160;
+          
+          // Lines
+          page.drawLine({ start: { x: margenIzquierdo, y: headerY }, end: { x: margenIzquierdo + anchoTotal, y: headerY }, thickness: 1, color: rgb(0, 0, 0) });
+          page.drawLine({ start: { x: margenIzquierdo, y: headerY - 25 }, end: { x: margenIzquierdo + anchoTotal, y: headerY - 25 }, thickness: 1, color: rgb(0, 0, 0) });
+          
+          // Text Headers
+          page.drawText("N°", { x: margenIzquierdo + (anchoColumna1 / 2) - 5, y: headerY - 17, size: 12, font: helveticaBold });
+          page.drawText("CÉDULA", { x: margenIzquierdo + anchoColumna1 + (anchoColumna2 / 2) - 25, y: headerY - 17, size: 12, font: helveticaBold });
+          
+          const nombresHeaderX = margenIzquierdo + anchoColumna1 + anchoColumna2 + (anchoColumnaNombres / 2) - 60;
+          page.drawText("APELLIDOS Y NOMBRES", { x: nombresHeaderX, y: headerY - 17, size: 12, font: helveticaBold });
 
           if (includeAge) {
-               const ageText = calculateAge(estudiante.fechaNacimiento);
-               const ageWidth = helveticaFont.widthOfTextAtSize(ageText, 12);
-               page.drawText(ageText, { 
-                   x: margenIzquierdo + anchoColumna1 + anchoColumna2 + anchoColumnaNombres + (anchoColumnaEdad / 2) - (ageWidth / 2), 
-                   y: currentY - lineHeight + 5, 
-                   size: 10, 
-                   font: helveticaFont 
-               });
+               const edadTextWidth = helveticaBold.widthOfTextAtSize("EDAD", 12);
+               const edadHeaderX = margenIzquierdo + anchoColumna1 + anchoColumna2 + anchoColumnaNombres + (anchoColumnaEdad / 2) - (edadTextWidth / 2);
+               page.drawText("EDAD", { x: edadHeaderX, y: headerY - 17, size: 12, font: helveticaBold });
           }
+          
+          return { page, currentY: headerY - 25 };
+        };
 
-          currentY -= lineHeight;
+        const drawVerticalLines = (targetPage: PDFPage, startY: number, endY: number) => {
+          targetPage.drawLine({ start: { x: margenIzquierdo, y: startY }, end: { x: margenIzquierdo, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
+          targetPage.drawLine({ start: { x: margenIzquierdo + anchoColumna1, y: startY }, end: { x: margenIzquierdo + anchoColumna1, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
+          targetPage.drawLine({ start: { x: margenIzquierdo + anchoColumna1 + anchoColumna2, y: startY }, end: { x: margenIzquierdo + anchoColumna1 + anchoColumna2, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
+          
+          if (includeAge) {
+               targetPage.drawLine({ start: { x: margenIzquierdo + anchoColumna1 + anchoColumna2 + anchoColumnaNombres, y: startY }, end: { x: margenIzquierdo + anchoColumna1 + anchoColumna2 + anchoColumnaNombres, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
+               targetPage.drawLine({ start: { x: margenIzquierdo + anchoTotal, y: startY }, end: { x: margenIzquierdo + anchoTotal, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
+          } else {
+               targetPage.drawLine({ start: { x: margenIzquierdo + anchoTotal, y: startY }, end: { x: margenIzquierdo + anchoTotal, y: endY }, thickness: 1, color: rgb(0, 0, 0) });
+          }
+        };
 
-           // Línea horizontal separadora (salvo la última si cae justo)
-           if (index < estudiantesData.length - 1) {
-              page.drawLine({ start: { x: margenIzquierdo, y: currentY }, end: { x: margenIzquierdo + anchoTotal, y: currentY }, thickness: 0.5, color: rgb(0, 0, 0) });
+        let { page, currentY } = addNewPage();
+        const { height: pageHeight } = page.getSize();
+        const initialHeaderY = pageHeight - 160;
+        let pageStartY = initialHeaderY;
+
+        // Add students to the table
+        estudiantesData.forEach((estudiante, index) => {
+           if (currentY - lineHeight < bottomMargin) {
+               drawVerticalLines(page, pageStartY, currentY);
+               page.drawLine({ start: { x: margenIzquierdo, y: currentY }, end: { x: margenIzquierdo + anchoTotal, y: currentY }, thickness: 1, color: rgb(0, 0, 0) });
+               
+               const newPageData = addNewPage();
+               page = newPageData.page;
+               currentY = newPageData.currentY;
+               const { height } = page.getSize();
+               pageStartY = height - 160;
            }
-      });
 
-      // Cerrar tabla final
-      drawVerticalLines(page, pageStartY, currentY);
-      page.drawLine({ start: { x: margenIzquierdo, y: currentY }, end: { x: margenIzquierdo + anchoTotal, y: currentY }, thickness: 1, color: rgb(0, 0, 0) });
+            const indexText = `${index + 1}`;
+            const indexWidth = helveticaFont.widthOfTextAtSize(indexText, 12);
+            const cedulaText = `${estudiante.cedula}`;
+            const cedulaWidth = helveticaFont.widthOfTextAtSize(cedulaText, 12);
+            
+            page.drawText(indexText, { x: margenIzquierdo + (anchoColumna1 / 2) - (indexWidth / 2), y: currentY - lineHeight + 5, size: 10, font: helveticaFont });
+            page.drawText(cedulaText, { x: margenIzquierdo + anchoColumna1 + (anchoColumna2 / 2) - (cedulaWidth / 2), y: currentY - lineHeight + 5, size: 10, font: helveticaFont });
+            page.drawText(`${estudiante.apellidos} ${estudiante.nombres}`.toUpperCase(), { x: margenIzquierdo + anchoColumna1 + anchoColumna2 + 10, y: currentY - lineHeight + 5, size: 10, font: helveticaFont });
 
-      // Totales
-      if (currentY - 60 < bottomMargin) {
-         // Si no hay espacio para totales, nueva pagina
-          const newPageData = addNewPage();
-          page = newPageData.page;
-          currentY = newPageData.currentY; // Actually headerY - 25, but we won't draw header for just totals ideally.
-          // Simply moving y down
-          currentY = pageHeight - 100; 
+            if (includeAge) {
+                 const ageText = calculateAge(estudiante.fechaNacimiento);
+                 const ageWidth = helveticaFont.widthOfTextAtSize(ageText, 12);
+                 page.drawText(ageText, { 
+                     x: margenIzquierdo + anchoColumna1 + anchoColumna2 + anchoColumnaNombres + (anchoColumnaEdad / 2) - (ageWidth / 2), 
+                     y: currentY - lineHeight + 5, 
+                     size: 10, 
+                     font: helveticaFont 
+                 });
+            }
+
+            currentY -= lineHeight;
+
+            if (index < estudiantesData.length - 1) {
+                page.drawLine({ start: { x: margenIzquierdo, y: currentY }, end: { x: margenIzquierdo + anchoTotal, y: currentY }, thickness: 0.5, color: rgb(0, 0, 0) });
+            }
+        });
+
+        // Close the table
+        drawVerticalLines(page, pageStartY, currentY);
+        page.drawLine({ start: { x: margenIzquierdo, y: currentY }, end: { x: margenIzquierdo + anchoTotal, y: currentY }, thickness: 1, color: rgb(0, 0, 0) });
+
+        // Add totals
+        if (currentY - 60 < bottomMargin) {
+            const newPageData = addNewPage();
+            page = newPageData.page;
+            currentY = pageHeight - 100;
+        }
+        
+        const textoY = currentY - 20;
+        page.drawText(`Total de estudiantes: ${estudiantesData.length}`, { x: margenIzquierdo, y: textoY, size: 12, font: helveticaBold });
+        page.drawText(`Varones: ${totalMasculino}`, { x: margenIzquierdo, y: textoY - 15, size: 12, font: helveticaBold });
+        page.drawText(`Hembras: ${totalFemenino}`, { x: margenIzquierdo, y: textoY - 30, size: 12, font: helveticaBold });
       }
-      
-      const textoY = currentY - 20;
-      page.drawText(`Total de estudiantes: ${estudiantesData.length}`, { x: margenIzquierdo, y: textoY, size: 12, font: helveticaBold });
-      page.drawText(`Varones: ${totalMasculino}`, { x: margenIzquierdo, y: textoY - 15, size: 12, font: helveticaBold });
-      page.drawText(`Hembras: ${totalFemenino}`, { x: margenIzquierdo, y: textoY - 30, size: 12, font: helveticaBold });
 
+      if (sectionsProcessed === 0) {
+        showToast.error("Ninguna de las secciones seleccionadas tiene estudiantes inscritos.");
+        setGenerating(false);
+        return;
+      }
+
+      // Save and open the single consolidated PDF
       const pdfBytes = await pdfDoc.save();
       const blob = new Blob([pdfBytes as unknown as BlobPart], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       window.open(url);
-      setOpen(false); // Close modal on success
+      
+      showToast.success(`Reporte consolidado generado con ${sectionsProcessed} sección(es).`);
+      setOpen(false);
 
     } catch (error) {
        console.error("Error generating PDF", error);
@@ -434,34 +432,85 @@ export const GenerateSectionReport = () => {
                 </Select>
              </div>
 
-             {/* Grado/Año */}
+             {/* Grado/Año - Multi-select */}
              <div className="space-y-2">
-                <label className="text-sm font-medium">Grado / Año</label>
-                <Select value={gradoAnioSeleccionado} onValueChange={setGradoAnioSeleccionado} disabled={!nivelEducativoSeleccionado || loading || gradosAnios.length === 0}>
-                   <SelectTrigger>
-                     <SelectValue placeholder="Seleccione grado/año" />
-                   </SelectTrigger>
-                   <SelectContent>
-                     {gradosAnios.map((grado) => (
-                       <SelectItem key={grado} value={grado}>{grado}°</SelectItem>
-                     ))}
-                   </SelectContent>
-                </Select>
+                <label className="text-sm font-medium">Grados / Años (Seleccione uno o más)</label>
+                <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+                  {gradosAnios.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      {!nivelEducativoSeleccionado ? "Seleccione un nivel educativo primero" : "No hay grados disponibles"}
+                    </p>
+                  ) : (
+                    gradosAnios.map((grado) => (
+                      <div key={grado} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`grado-${grado}`} 
+                          checked={gradosAniosSeleccionados.includes(grado)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setGradosAniosSeleccionados([...gradosAniosSeleccionados, grado]);
+                            } else {
+                              setGradosAniosSeleccionados(gradosAniosSeleccionados.filter(g => g !== grado));
+                            }
+                          }}
+                          disabled={!nivelEducativoSeleccionado || loading}
+                        />
+                        <Label 
+                          htmlFor={`grado-${grado}`} 
+                          className="text-sm font-medium cursor-pointer flex-1"
+                        >
+                          {grado}°
+                        </Label>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {gradosAniosSeleccionados.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {gradosAniosSeleccionados.length} grado(s) seleccionado(s): {gradosAniosSeleccionados.map(g => `${g}°`).join(", ")}
+                  </p>
+                )}
              </div>
 
-             {/* Sección */}
+             {/* Secciones - Multi-select */}
              <div className="space-y-2">
-                <label className="text-sm font-medium">Sección</label>
-                <Select value={seccionSeleccionada} onValueChange={setSeccionSeleccionada} disabled={!gradoAnioSeleccionado || loading || seccionesDisponibles.length === 0}>
-                   <SelectTrigger>
-                     <SelectValue placeholder="Seleccione sección" />
-                   </SelectTrigger>
-                   <SelectContent>
-                     {seccionesDisponibles.map((seccion) => (
-                       <SelectItem key={seccion.id} value={seccion.seccion}>{seccion.seccion}</SelectItem>
-                     ))}
-                   </SelectContent>
-                </Select>
+                <label className="text-sm font-medium">Secciones (Seleccione una o más)</label>
+                <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+                  {seccionesDisponibles.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      {gradosAniosSeleccionados.length === 0 ? "Seleccione grado(s)/año(s) primero" : "No hay secciones disponibles"}
+                    </p>
+                  ) : (
+                    seccionesDisponibles.map((seccion) => (
+                      <div key={seccion.id} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`seccion-${seccion.id}`} 
+                          checked={seccionesSeleccionadasIds.includes(seccion.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSeccionesSeleccionadasIds([...seccionesSeleccionadasIds, seccion.id]);
+                            } else {
+                              setSeccionesSeleccionadasIds(seccionesSeleccionadasIds.filter(s => s !== seccion.id));
+                            }
+                          }}
+                          disabled={gradosAniosSeleccionados.length === 0 || loading}
+                        />
+                        <Label 
+                          htmlFor={`seccion-${seccion.id}`} 
+                          className="text-sm font-medium cursor-pointer flex-1"
+                        >
+                          {gradosAniosSeleccionados.length > 1 ? `${seccion.grado_año}° - ` : ""}Sección {seccion.seccion}
+                          {seccion.estudiantes_ids && ` (${seccion.estudiantes_ids.length} estudiantes)`}
+                        </Label>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {seccionesSeleccionadasIds.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {seccionesSeleccionadasIds.length} sección(es) seleccionada(s)
+                  </p>
+                )}
              </div>
 
              {/* Include Age Checkbox */}
@@ -474,9 +523,9 @@ export const GenerateSectionReport = () => {
         </div>
 
         <DialogFooter>
-          <Button onClick={generarReporte} disabled={generating || !seccionSeleccionada} className="w-full bg-blue-600 hover:bg-blue-700">
+          <Button onClick={generarReporte} disabled={generating || seccionesSeleccionadasIds.length === 0} className="w-full bg-blue-600 hover:bg-blue-700">
             {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <FileText className="mr-2 h-4 w-4" />}
-            Generar Nómina
+            {seccionesSeleccionadasIds.length > 1 ? `Generar ${seccionesSeleccionadasIds.length} Nóminas` : "Generar Nómina"}
           </Button>
           
         </DialogFooter>

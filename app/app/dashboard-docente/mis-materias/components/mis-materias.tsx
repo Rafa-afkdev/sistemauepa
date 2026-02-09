@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
     Select,
     SelectContent,
@@ -10,20 +11,22 @@ import {
     SelectTrigger,
     SelectValue
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import {
     BookOpen,
-    Users,
+    ChevronLeft,
     GraduationCap,
     Loader2,
-    School
+    School,
+    Users
 } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { useUser } from "@/hooks/use-user";
+import { AsignacionDocenteMateria } from "@/interfaces/materias.interface";
 import { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
-import { AsignacionDocenteMateria, Materias } from "@/interfaces/materias.interface";
-import { collection, query, where, getDocs, orderBy, getDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/data/firebase";
+import { collection, doc, getDoc, getDocs, orderBy, query, where } from "firebase/firestore";
 import { showToast } from "nextjs-toast-notify";
 
 interface MateriaConSecciones {
@@ -191,11 +194,18 @@ export function MisMaterias() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold">Mis Materias</h1>
-                <p className="text-muted-foreground mt-2">
-                    Visualiza las materias y secciones que tienes asignadas
-                </p>
+            <div className="flex items-center gap-4">
+                <Link href="/app/dashboard-docente">
+                    <Button variant="outline" size="icon">
+                        <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                </Link>
+                <div>
+                    <h1 className="text-3xl font-bold">Mis Materias</h1>
+                    <p className="text-muted-foreground mt-2">
+                        Visualiza las materias y secciones que tienes asignadas
+                    </p>
+                </div>
             </div>
 
             {/* Estadísticas rápidas */}

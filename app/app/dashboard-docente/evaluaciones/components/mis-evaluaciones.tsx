@@ -38,6 +38,7 @@ import {
   Calendar,
   Check,
   CheckCircle2,
+  ChevronLeft,
   ChevronsUpDown,
   Edit,
   Eye,
@@ -46,6 +47,7 @@ import {
   Plus,
   Trash2
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { useUser } from "@/hooks/use-user";
@@ -455,11 +457,18 @@ export function MisEvaluaciones() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Mis Evaluaciones</h1>
-          <p className="text-muted-foreground mt-2">
-            Gestiona y programa las evaluaciones de tus estudiantes
-          </p>
+        <div className="flex items-center gap-4">
+          <Link href="/app/dashboard-docente">
+            <Button variant="outline" size="icon">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold">Mis Evaluaciones</h1>
+            <p className="text-muted-foreground mt-2">
+              Gestiona y programa las evaluaciones de tus estudiantes
+            </p>
+          </div>
         </div>
         <CrearEvaluacionDialog onEvaluacionCreada={loadEvaluaciones}>
           <Button className="bg-blue-600 hover:bg-blue-700">

@@ -1,6 +1,6 @@
 "use client";
 
-import { Card,  CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUser } from "@/hooks/use-user";
 import { Evaluaciones } from "@/interfaces/evaluaciones.interface";
 import { AsignacionDocenteMateria } from "@/interfaces/materias.interface";
@@ -170,16 +170,20 @@ export default function DashboardDocentePage() {
             </div>
           </Link>
           <div className="p-4 border rounded-lg hover:bg-accent cursor-pointer transition-colors">
-            <h3 className="font-semibold mb-2">Ver Mis Materias</h3>
-            <p className="text-sm text-muted-foreground">
-              Consulta las materias que tienes asignadas
-            </p>
+            <Link href="/app/dashboard-docente/notas/subir-notas">
+              <h3 className="font-semibold mb-2">Subir Notas</h3>
+              <p className="text-sm text-muted-foreground">
+                Registra las calificaciones de tus estudiantes
+              </p>
+            </Link>
           </div>
           <div className="p-4 border rounded-lg hover:bg-accent cursor-pointer transition-colors">
-            <h3 className="font-semibold mb-2">Mis Evaluaciones</h3>
-            <p className="text-sm text-muted-foreground">
-              Gestiona tus evaluaciones y exámenes
-            </p>
+            <Link href="/app/dashboard-docente/evaluaciones">
+              <h3 className="font-semibold mb-2">Mis Evaluaciones</h3>
+              <p className="text-sm text-muted-foreground">
+                Gestiona tus evaluaciones y exámenes
+              </p>
+            </Link>
           </div>
           <div className="p-4 border rounded-lg hover:bg-accent cursor-pointer transition-colors">
             <h3 className="font-semibold mb-2">Horario de Clases</h3>
