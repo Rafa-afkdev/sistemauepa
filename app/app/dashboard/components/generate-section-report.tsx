@@ -191,7 +191,7 @@ export const GenerateSectionReport = () => {
         const seccionData = seccionesDisponibles.find(s => s.id === seccionId);
         
         if (!seccionData || !seccionData.estudiantes_ids || seccionData.estudiantes_ids.length === 0) {
-          showToast.warning(`La sección ${seccionData?.seccion || ''} del grado ${seccionData?.grado_año || ''}° no tiene estudiantes inscritos.`);
+          showToast.warning(`La sección ${seccionData?.seccion || ''} del grado ${seccionData?.grado_año || ''} no tiene estudiantes inscritos.`);
           continue;
         }
 
@@ -233,7 +233,7 @@ export const GenerateSectionReport = () => {
           page.drawImage(logo3Img, { x: width - 60 - 60, y: yLogos, width: 60, height: 60 });
 
           // Título
-          const tituloTexto = `${seccionData.grado_año}° ${nivelEducativoSeleccionado} Sección "${seccionData.seccion}"`;
+          const tituloTexto = `${seccionData.grado_año} ${nivelEducativoSeleccionado} Sección "${seccionData.seccion}"`;
           const tituloWidth = helveticaBold.widthOfTextAtSize(tituloTexto, 20);
           page.drawText(tituloTexto, {
               x: width / 2 - tituloWidth / 2,
@@ -459,7 +459,7 @@ export const GenerateSectionReport = () => {
                           htmlFor={`grado-${grado}`} 
                           className="text-sm font-medium cursor-pointer flex-1"
                         >
-                          {grado}°
+                          {grado}
                         </Label>
                       </div>
                     ))
@@ -467,7 +467,7 @@ export const GenerateSectionReport = () => {
                 </div>
                 {gradosAniosSeleccionados.length > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    {gradosAniosSeleccionados.length} grado(s) seleccionado(s): {gradosAniosSeleccionados.map(g => `${g}°`).join(", ")}
+                    {gradosAniosSeleccionados.length} grado(s) seleccionado(s): {gradosAniosSeleccionados.map(g => `${g}`).join(", ")}
                   </p>
                 )}
              </div>
@@ -499,7 +499,7 @@ export const GenerateSectionReport = () => {
                           htmlFor={`seccion-${seccion.id}`} 
                           className="text-sm font-medium cursor-pointer flex-1"
                         >
-                          {gradosAniosSeleccionados.length > 1 ? `${seccion.grado_año}° - ` : ""}Sección {seccion.seccion}
+                          {gradosAniosSeleccionados.length > 1 ? `${seccion.grado_año} - ` : ""}Sección {seccion.seccion}
                           {seccion.estudiantes_ids && ` (${seccion.estudiantes_ids.length} estudiantes)`}
                         </Label>
                       </div>
