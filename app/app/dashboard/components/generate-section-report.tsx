@@ -165,7 +165,7 @@ export const GenerateSectionReport = () => {
       // Load images once for reuse
       const logo1Bytes = await fetch("/Logo1.png").then((res) => res.arrayBuffer());
       const logo2Bytes = await fetch("/Logo2.png").then((res) => res.arrayBuffer());
-      const logo3Bytes = await fetch("/Logo-COLEGIO.png").then((res) => res.arrayBuffer());
+      const logo3Bytes = await fetch("/LOGO-COLEGIO.png").then((res) => res.arrayBuffer());
 
       const logo1Img = await pdfDoc.embedPng(logo1Bytes);
       const logo2Img = await pdfDoc.embedPng(logo2Bytes);

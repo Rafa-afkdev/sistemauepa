@@ -20,12 +20,12 @@ export const DataDocenteSidebar = [
     {
         icon: FileEdit,
         label: "Cargar Notas",
-        href: "/app/dashboard-docente/cargar-notas", 
+        href: "/app/dashboard-docente/notas/cargar-notas", 
     },
     {
         icon: FileText,
         label: "Ver Notas",
-        href: "/app/dashboard-docente/ver-notas", 
+        href: "/app/dashboard-docente/notas/ver-notas", 
     },
     {
         icon: ClipboardList,
