@@ -5,23 +5,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { useUser } from "@/hooks/use-user";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
@@ -138,23 +138,51 @@ export default function SubirNotas() {
 
     setIsLoadingEstudiantes(true);
     try {
-      const estudiantesRef = collection(db, "estudiantes");
-      const q = query(
-        estudiantesRef,
-        where("seccion_actual", "==", evaluacion.seccion_id),
+      // Primero, obtener IDs de estudiantes inscritos en esta sección
+      const inscripcionesRef = collection(db, "estudiantes_inscritos");
+      const qInscripciones = query(
+        inscripcionesRef,
+        where("id_seccion", "==", evaluacion.seccion_id),
         where("estado", "==", "activo")
       );
 
-      const snapshot = await getDocs(q);
-      const estudiantesData = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() } as Estudiantes))
-        .sort((a, b) => a.apellidos.localeCompare(b.apellidos));
+      const inscripcionesSnapshot = await getDocs(qInscripciones);
+      const estudianteIds = inscripcionesSnapshot.docs.map(doc => doc.data().id_estudiante);
 
-      setEstudiantes(estudiantesData);
+      if (estudianteIds.length === 0) {
+        setEstudiantes([]);
+        setNotasEstudiantes({});
+        setIsLoadingEstudiantes(false);
+        return;
+      }
+
+      // Luego, obtener los datos completos de esos estudiantes
+      const estudiantesRef = collection(db, "estudiantes");
+      const estudiantesData: Estudiantes[] = [];
+
+      // Fetch en lotes de 10 (límite de Firestore para 'in')
+      for (let i = 0; i < estudianteIds.length; i += 10) {
+        const batch = estudianteIds.slice(i, i + 10);
+        const qEstudiantes = query(
+          estudiantesRef,
+          where("__name__", "in", batch)
+        );
+        const estudiantesSnapshot = await getDocs(qEstudiantes);
+        estudiantesSnapshot.docs.forEach(doc => {
+          estudiantesData.push({ id: doc.id, ...doc.data() } as Estudiantes);
+        });
+      }
+
+      // Ordenar por apellidos
+      const estudiantesOrdenados = estudiantesData.sort((a, b) => 
+        a.apellidos.localeCompare(b.apellidos)
+      );
+
+      setEstudiantes(estudiantesOrdenados);
 
       // Inicializar notas vacías para cada estudiante
       const notasIniciales: { [key: string]: NotasEstudiante } = {};
-      estudiantesData.forEach((est) => {
+      estudiantesOrdenados.forEach((est) => {
         if (est.id) {
           const notasCriterios: { [key: string]: number } = {};
           evaluacion.criterios.forEach((criterio) => {

@@ -39,23 +39,23 @@ export async function generarReportePDF(
   const logo2Img = await pdfDoc.embedPng(logo2Bytes);
   const logo3Img = await pdfDoc.embedPng(logo3Bytes);
 
-  // Dimensiones de página A4
-  const pageWidth = 595.28;
-  const pageHeight = 841.89;
+  // Dimensiones de página A4 HORIZONTAL (landscape)
+  const pageWidth = 841.89;   // A4 horizontal width
+  const pageHeight = 595.28;  // A4 horizontal height
   const margin = 50;
   const lineHeight = 15;
   const bottomMargin = 50;
 
-  // Definir columnas de la tabla
-  const colNumero = 30;
-  const colCedula = 70;
-  const colNombre = 150;
+  // Definir columnas de la tabla con más espacio disponible
+  const colNumero = 35;
+  const colCedula = 80;
+  const colNombre = 200;
   
-  // Calcular dinámicamente el ancho de cada criterio
+  // Calcular dinámicamente el ancho de cada criterio con más espacio
   const numCriterios = evaluacion.criterios.length;
-  const anchoDisponibleCriterios = 200; // Espacio para criterios
-  const colCriterio = Math.min(40, anchoDisponibleCriterios / numCriterios);
-  const colNotaFinal = 50;
+  const anchoDisponibleCriterios = 350; // Más espacio para criterios en horizontal
+  const colCriterio = Math.min(60, anchoDisponibleCriterios / numCriterios);
+  const colNotaFinal = 60;
   
   const anchoTotal = colNumero + colCedula + colNombre + (colCriterio * numCriterios) + colNotaFinal;
 
@@ -76,11 +76,11 @@ export async function generarReportePDF(
 
     // Título principal
     const titulo = "REPORTE DE CALIFICACIONES";
-    const tituloWidth = helveticaBold.widthOfTextAtSize(titulo, 18);
+    const tituloWidth = helveticaBold.widthOfTextAtSize(titulo, 20);
     page.drawText(titulo, {
       x: width / 2 - tituloWidth / 2,
       y: height - 135,
-      size: 18,
+      size: 20,
       font: helveticaBold,
       color: rgb(0, 0, 0.6),
     });
@@ -138,20 +138,29 @@ export async function generarReportePDF(
     // Cabecera de la tabla
     const headerY = height - 200;
 
-    // Línea superior de la tabla
+    // Fondo del encabezado (rectángulo azul/gris)
+    page.drawRectangle({
+      x: margin,
+      y: headerY - 25,
+      width: anchoTotal,
+      height: 25,
+      color: rgb(0.9, 0.9, 0.95), // Gris azulado claro
+    });
+
+    // Línea superior de la tabla (más gruesa)
     page.drawLine({
       start: { x: margin, y: headerY },
       end: { x: margin + anchoTotal, y: headerY },
-      thickness: 1,
-      color: rgb(0, 0, 0),
+      thickness: 2,
+      color: rgb(0, 0, 0.6),
     });
 
-    // Línea inferior del encabezado
+    // Línea inferior del encabezado (más gruesa)
     page.drawLine({
       start: { x: margin, y: headerY - 25 },
       end: { x: margin + anchoTotal, y: headerY - 25 },
-      thickness: 1,
-      color: rgb(0, 0, 0),
+      thickness: 2,
+      color: rgb(0, 0, 0.6),
     });
 
     // Textos del encabezado
@@ -161,8 +170,9 @@ export async function generarReportePDF(
     page.drawText("N°", {
       x: xPos + colNumero / 2 - 5,
       y: headerY - 17,
-      size: 9,
+      size: 10,
       font: helveticaBold,
+      color: rgb(0, 0, 0.6),
     });
     xPos += colNumero;
 
@@ -170,8 +180,9 @@ export async function generarReportePDF(
     page.drawText("CÉDULA", {
       x: xPos + colCedula / 2 - 20,
       y: headerY - 17,
-      size: 9,
+      size: 10,
       font: helveticaBold,
+      color: rgb(0, 0, 0.6),
     });
     xPos += colCedula;
 
@@ -179,20 +190,22 @@ export async function generarReportePDF(
     page.drawText("APELLIDOS Y NOMBRES", {
       x: xPos + 10,
       y: headerY - 17,
-      size: 9,
+      size: 10,
       font: helveticaBold,
+      color: rgb(0, 0, 0.6),
     });
     xPos += colNombre;
 
     // Criterios (abreviados)
     evaluacion.criterios.forEach((criterio) => {
-      const criterioText = criterio.nombre.substring(0, 8);
-      const criterioWidth = helveticaBold.widthOfTextAtSize(criterioText, 7);
+      const criterioText = criterio.nombre.substring(0, 10);
+      const criterioWidth = helveticaBold.widthOfTextAtSize(criterioText, 8);
       page.drawText(criterioText, {
         x: xPos + colCriterio / 2 - criterioWidth / 2,
         y: headerY - 17,
-        size: 7,
+        size: 8,
         font: helveticaBold,
+        color: rgb(0, 0, 0.6),
       });
       xPos += colCriterio;
     });
@@ -201,8 +214,9 @@ export async function generarReportePDF(
     page.drawText("FINAL", {
       x: xPos + colNotaFinal / 2 - 12,
       y: headerY - 17,
-      size: 9,
+      size: 10,
       font: helveticaBold,
+      color: rgb(0, 0, 0.6),
     });
 
     return { page, currentY: headerY - 25, pageStartY: headerY };
@@ -378,75 +392,133 @@ export async function generarReportePDF(
   });
 
   // Sección de estadísticas
-  if (currentY - 80 < bottomMargin) {
+  if (currentY - 100 < bottomMargin) {
     const newPageData = addNewPage();
     currentPage = newPageData.page;
     currentY = pageHeight - 150;
   }
 
-  currentY -= 20;
+  currentY -= 25;
+
+  // Separador antes de estadísticas
+  currentPage!.drawLine({
+    start: { x: margin, y: currentY },
+    end: { x: margin + anchoTotal, y: currentY },
+    thickness: 1.5,
+    color: rgb(0, 0, 0.6),
+  });
+
+  currentY -= 15;
 
   // Título de estadísticas
   currentPage!.drawText("ESTADÍSTICAS GENERALES", {
     x: margin,
     y: currentY,
-    size: 12,
+    size: 14,
     font: helveticaBold,
     color: rgb(0, 0, 0.6),
   });
   
-  currentY -= 20;
+  currentY -= 25;
 
-  // Estadísticas en dos columnas
+  // Estadísticas en dos columnas con mejor formato
   const col1X = margin;
-  const col2X = margin + 200;
+  const col2X = margin + 250;
+  const col3X = margin + 500;
   
-  currentPage!.drawText(`Promedio: ${estadisticas.promedio}`, {
+  // Fila 1: Promedio y Total
+  currentPage!.drawText("Promedio:", {
     x: col1X,
     y: currentY,
-    size: 10,
-    font: helvetica,
+    size: 11,
+    font: helveticaBold,
   });
   
-  currentPage!.drawText(`Total de Estudiantes: ${estadisticas.total}`, {
+  currentPage!.drawText(estadisticas.promedio, {
+    x: col1X + 70,
+    y: currentY,
+    size: 11,
+    font: helvetica,
+    color: rgb(0, 0, 0.8),
+  });
+  
+  currentPage!.drawText("Total de Estudiantes:", {
     x: col2X,
     y: currentY,
-    size: 10,
-    font: helvetica,
+    size: 11,
+    font: helveticaBold,
   });
   
-  currentY -= 15;
+  currentPage!.drawText(estadisticas.total.toString(), {
+    x: col2X + 140,
+    y: currentY,
+    size: 11,
+    font: helvetica,
+    color: rgb(0, 0, 0.8),
+  });
   
-  currentPage!.drawText(`Nota Máxima: ${estadisticas.notaMaxima}`, {
+  currentY -= 18;
+  
+  // Fila 2: Nota Máxima y Aprobados
+  currentPage!.drawText("Nota Máxima:", {
     x: col1X,
     y: currentY,
-    size: 10,
+    size: 11,
+    font: helveticaBold,
+  });
+  
+  currentPage!.drawText(estadisticas.notaMaxima, {
+    x: col1X + 70,
+    y: currentY,
+    size: 11,
     font: helvetica,
     color: rgb(0, 0.6, 0),
   });
   
-  currentPage!.drawText(`Aprobados: ${estadisticas.aprobados}`, {
+  currentPage!.drawText("Aprobados:", {
     x: col2X,
     y: currentY,
-    size: 10,
+    size: 11,
+    font: helveticaBold,
+  });
+  
+  currentPage!.drawText(estadisticas.aprobados.toString(), {
+    x: col2X + 140,
+    y: currentY,
+    size: 11,
     font: helvetica,
     color: rgb(0, 0.6, 0),
   });
   
-  currentY -= 15;
+  currentY -= 18;
   
-  currentPage!.drawText(`Nota Mínima: ${estadisticas.notaMinima}`, {
+  // Fila 3: Nota Mínima y Reprobados
+  currentPage!.drawText("Nota Mínima:", {
     x: col1X,
     y: currentY,
-    size: 10,
+    size: 11,
+    font: helveticaBold,
+  });
+  
+  currentPage!.drawText(estadisticas.notaMinima, {
+    x: col1X + 70,
+    y: currentY,
+    size: 11,
     font: helvetica,
     color: rgb(0.8, 0, 0),
   });
   
-  currentPage!.drawText(`Reprobados: ${estadisticas.reprobados}`, {
+  currentPage!.drawText("Reprobados:", {
     x: col2X,
     y: currentY,
-    size: 10,
+    size: 11,
+    font: helveticaBold,
+  });
+  
+  currentPage!.drawText(estadisticas.reprobados.toString(), {
+    x: col2X + 140,
+    y: currentY,
+    size: 11,
     font: helvetica,
     color: rgb(0.8, 0, 0),
   });
