@@ -1,38 +1,28 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useUser } from "@/hooks/use-user";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
 import { Evaluaciones } from "@/interfaces/evaluaciones.interface";
 import { NotasCriterios, NotasEvaluacion } from "@/interfaces/notas-evaluaciones.interface";
 import { db } from "@/lib/data/firebase";
 import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
-import { Check, ChevronLeft, ChevronsUpDown, Loader2, Save } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { showToast } from "nextjs-toast-notify";
 import { useEffect, useState } from "react";
+import { CompletionDialog } from "./components/CompletionDialog";
+import { EvaluationInfo } from "./components/EvaluationInfo";
+import { EvaluationSelector } from "./components/EvaluationSelector";
+import { GradesInputTable } from "./components/GradesInputTable";
+import { SectionSelector } from "./components/SectionSelector";
+
+interface Seccion {
+  id: string;
+  nombre: string;
+  evaluacionesCount?: number;
+}
 
 interface EvaluacionConDetalles extends Evaluaciones {
   materia_nombre?: string;
@@ -48,11 +38,15 @@ interface NotasEstudiante {
 
 export default function SubirNotas() {
   const { user } = useUser();
+  const [secciones, setSecciones] = useState<Seccion[]>([]);
+  const [seccionSeleccionada, setSeccionSeleccionada] = useState<string>("");
   const [evaluaciones, setEvaluaciones] = useState<EvaluacionConDetalles[]>([]);
+  const [evaluacionesFiltradas, setEvaluacionesFiltradas] = useState<EvaluacionConDetalles[]>([]);
   const [evaluacionSeleccionada, setEvaluacionSeleccionada] = useState<string>("");
   const [estudiantes, setEstudiantes] = useState<Estudiantes[]>([]);
   const [notasEstudiantes, setNotasEstudiantes] = useState<{ [key: string]: NotasEstudiante }>({});
   const [isLoadingEvaluaciones, setIsLoadingEvaluaciones] = useState(true);
+  const [openSectionCombobox, setOpenSectionCombobox] = useState(false);
   const [openCombobox, setOpenCombobox] = useState(false);
   const [isLoadingEstudiantes, setIsLoadingEstudiantes] = useState(false);
   const [dialogCompletarOpen, setDialogCompletarOpen] = useState(false);
@@ -65,6 +59,21 @@ export default function SubirNotas() {
       loadEvaluacionesPendientes();
     }
   }, [user]);
+
+  // Filtrar evaluaciones cuando cambia la sección seleccionada
+  useEffect(() => {
+    if (seccionSeleccionada) {
+      const filtradas = evaluaciones.filter((ev) => ev.seccion_id === seccionSeleccionada);
+      setEvaluacionesFiltradas(filtradas);
+      // Resetear evaluación seleccionada si no está en la nueva lista
+      if (evaluacionSeleccionada && !filtradas.find((ev) => ev.id === evaluacionSeleccionada)) {
+        setEvaluacionSeleccionada("");
+      }
+    } else {
+      setEvaluacionesFiltradas([]);
+      setEvaluacionSeleccionada("");
+    }
+  }, [seccionSeleccionada, evaluaciones]);
 
   // Cargar estudiantes cuando se selecciona una evaluación
   useEffect(() => {
@@ -99,7 +108,7 @@ export default function SubirNotas() {
             try {
               const materiaDoc = await getDoc(doc(db, "materias", data.materia_id));
               if (materiaDoc.exists()) {
-                data.materia_nombre = materiaDoc.data().nombre;
+                data.materia_nombre = materiaDoc.data()?.nombre || "";
               }
             } catch (error) {
               console.error("Error al obtener materia:", error);
@@ -112,7 +121,7 @@ export default function SubirNotas() {
               const seccionDoc = await getDoc(doc(db, "secciones", data.seccion_id));
               if (seccionDoc.exists()) {
                 const seccionData = seccionDoc.data();
-                data.seccion_nombre = `${seccionData.grado_año} "${seccionData.seccion}"`;
+                data.seccion_nombre = `${seccionData?.grado_año || ""} "${seccionData?.seccion || ""}"`;
               }
             } catch (error) {
               console.error("Error al obtener sección:", error);
@@ -124,6 +133,49 @@ export default function SubirNotas() {
       );
 
       setEvaluaciones(evaluacionesData);
+
+      // Extraer secciones únicas y contar evaluaciones por sección
+      const seccionesMap = new Map<string, Seccion>();
+      evaluacionesData.forEach((ev) => {
+        if (ev.seccion_id && ev.seccion_nombre) {
+          if (seccionesMap.has(ev.seccion_id)) {
+            const seccion = seccionesMap.get(ev.seccion_id)!;
+            seccion.evaluacionesCount = (seccion.evaluacionesCount || 0) + 1;
+          } else {
+            seccionesMap.set(ev.seccion_id, {
+              id: ev.seccion_id,
+              nombre: ev.seccion_nombre,
+              evaluacionesCount: 1,
+            });
+          }
+        }
+      });
+
+      // Ordenar secciones por grado y sección
+      const seccionesOrdenadas = Array.from(seccionesMap.values()).sort((a, b) => {
+        // Extraer grado y sección del nombre (ej: "1 \"A\"")
+        const matchA = a.nombre.match(/(\d+)(?:°)?\s*"([A-Z])"/);
+        const matchB = b.nombre.match(/(\d+)(?:°)?\s*"([A-Z])"/);
+        
+        if (matchA && matchB) {
+          const gradoA = parseInt(matchA[1]);
+          const gradoB = parseInt(matchB[1]);
+          const seccionA = matchA[2];
+          const seccionB = matchB[2];
+          
+          // Primero ordenar por grado
+          if (gradoA !== gradoB) {
+            return gradoA - gradoB;
+          }
+          // Si el grado es igual, ordenar por sección (A, B, C...)
+          return seccionA.localeCompare(seccionB);
+        }
+        
+        // Fallback: orden alfabético simple
+        return a.nombre.localeCompare(b.nombre);
+      });
+
+      setSecciones(seccionesOrdenadas);
     } catch (error) {
       console.error("Error al cargar evaluaciones:", error);
       showToast.error("Error al cargar evaluaciones pendientes");
@@ -210,35 +262,35 @@ export default function SubirNotas() {
 
     try {
       const notasRef = collection(db, "notas_evaluaciones");
-      const q = query(notasRef, where("evaluacion_id", "==", evaluacionSeleccionada));
+      const q = query(
+        notasRef,
+        where("evaluacion_id", "==", evaluacionSeleccionada)
+      );
+
       const snapshot = await getDocs(q);
 
-      const notasExistentes: { [key: string]: NotasEvaluacion } = {};
-      snapshot.docs.forEach((doc) => {
-        const notaData = { id: doc.id, ...doc.data() } as NotasEvaluacion;
-        notasExistentes[notaData.estudiante_id] = notaData;
+      if (snapshot.empty) return;
+
+      const notasActualizadas = { ...notasEstudiantes };
+
+      snapshot.docs.forEach((docSnap) => {
+        const nota = docSnap.data() as NotasEvaluacion;
+        if (nota.estudiante_id && notasActualizadas[nota.estudiante_id]) {
+          const notasCriterios: { [key: string]: number } = {};
+          nota.notas_criterios.forEach((nc) => {
+            notasCriterios[nc.criterio_numero] = nc.nota_obtenida;
+          });
+
+          notasActualizadas[nota.estudiante_id] = {
+            estudiante_id: nota.estudiante_id,
+            notas_criterios: notasCriterios,
+            nota_definitiva: nota.nota_definitiva,
+            observacion: nota.observacion || "",
+          };
+        }
       });
 
-      // Actualizar estado con notas existentes
-      setNotasEstudiantes((prev) => {
-        const updated = { ...prev };
-        Object.keys(notasExistentes).forEach((estudianteId) => {
-          if (updated[estudianteId]) {
-            const notaData = notasExistentes[estudianteId];
-            const criteriosMap: { [key: string]: number } = {};
-            notaData.notas_criterios.forEach((nc) => {
-              criteriosMap[nc.criterio_numero] = nc.nota_obtenida;
-            });
-            updated[estudianteId] = {
-              ...updated[estudianteId],
-              notas_criterios: criteriosMap,
-              nota_definitiva: notaData.nota_definitiva,
-              observacion: "",
-            };
-          }
-        });
-        return updated;
-      });
+      setNotasEstudiantes(notasActualizadas);
     } catch (error) {
       console.error("Error al cargar notas existentes:", error);
     }
@@ -255,176 +307,102 @@ export default function SubirNotas() {
     const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
     if (!evaluacion) return;
 
+    const valorNumerico = parseFloat(valor) || 0;
     const criterio = evaluacion.criterios.find((c) => c.nro_criterio === criterioNumero);
+
     if (!criterio) return;
 
-    let nota = parseInt(valor) || 0;
-    
-    // Asegurar que sea un número entero
-    nota = Math.floor(Math.abs(nota));
-    
-    // Validar que no exceda la ponderación máxima
-    if (nota > criterio.ponderacion) {
-      nota = criterio.ponderacion;
-    }
-    if (nota < 0) {
-      nota = 0;
-    }
+    // Validar que la nota no exceda la ponderación del criterio
+    const notaValidada = Math.min(Math.max(valorNumerico, 0), criterio.ponderacion);
 
     setNotasEstudiantes((prev) => {
-      const updated = { ...prev };
-      if (updated[estudianteId]) {
-        updated[estudianteId] = {
-          ...updated[estudianteId],
-          notas_criterios: {
-            ...updated[estudianteId].notas_criterios,
-            [criterioNumero]: nota,
-          },
-        };
+      const nuevasNotasCriterios = {
+        ...prev[estudianteId].notas_criterios,
+        [criterioNumero]: notaValidada,
+      };
 
-        // Calcular nota definitiva
-        const suma = Object.values(updated[estudianteId].notas_criterios).reduce(
-          (acc, val) => acc + val,
-          0
-        );
-        updated[estudianteId].nota_definitiva = Math.round(suma * 100) / 100;
-      }
-      return updated;
+      // Calcular nota definitiva (suma simple de todas las notas)
+      let notaDefinitiva = 0;
+      evaluacion.criterios.forEach((crit) => {
+        const notaCriterio = nuevasNotasCriterios[crit.nro_criterio] || 0;
+        const porcentajeCriterio = crit.ponderacion / evaluacion.criterios.reduce((sum, c) => sum + c.ponderacion, 0);
+        notaDefinitiva += notaCriterio * porcentajeCriterio;
+      });
+
+      return {
+        ...prev,
+        [estudianteId]: {
+          ...prev[estudianteId],
+          notas_criterios: nuevasNotasCriterios,
+          nota_definitiva: notaDefinitiva,
+        },
+      };
     });
   };
 
   const handleGuardarNota = async (estudianteId: string) => {
     const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
-    const estudiante = estudiantes.find((e) => e.id === estudianteId);
-    const notasData = notasEstudiantes[estudianteId];
+    if (!evaluacion || !evaluacionSeleccionada) return;
 
-    if (!evaluacion || !estudiante || !notasData || !user?.uid) return;
-
-    // Marcar como guardando
-    setNotasEstudiantes((prev) => ({
-      ...prev,
-      [estudianteId]: { ...prev[estudianteId], guardando: true },
-    }));
+    const notasEst = notasEstudiantes[estudianteId];
+    if (!notasEst) return;
 
     try {
-      // Construir array de notas por criterio
-      const notasCriterios: NotasCriterios[] = evaluacion.criterios.map((criterio) => ({
+      const notasCriteriosArray: NotasCriterios[] = evaluacion.criterios.map((criterio) => ({
         criterio_numero: criterio.nro_criterio,
         criterio_nombre: criterio.nombre,
         ponderacion_maxima: criterio.ponderacion,
-        nota_obtenida: notasData.notas_criterios[criterio.nro_criterio] || 0,
+        nota_obtenida: notasEst.notas_criterios[criterio.nro_criterio] || 0,
       }));
 
-      const notaDoc: Omit<NotasEvaluacion, "id"> = {
-        evaluacion_id: evaluacion.id!,
-        estudiante_id: estudianteId,
-        estudiante_nombre: `${estudiante.nombres} ${estudiante.apellidos}`,
-        notas_criterios: notasCriterios,
-        nota_definitiva: notasData.nota_definitiva,
-        docente_id: user.uid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-
-      // Verificar si ya existe una nota para este estudiante en esta evaluación
+      // Verificar si ya existe una nota
       const notasRef = collection(db, "notas_evaluaciones");
       const q = query(
         notasRef,
-        where("evaluacion_id", "==", evaluacion.id),
+        where("evaluacion_id", "==", evaluacionSeleccionada),
         where("estudiante_id", "==", estudianteId)
       );
-      const existingSnapshot = await getDocs(q);
+      const snapshot = await getDocs(q);
 
-      if (existingSnapshot.empty) {
-        // Crear nueva nota
-        await addDoc(notasRef, notaDoc);
-      } else {
+      if (!snapshot.empty) {
         // Actualizar nota existente
-        const docId = existingSnapshot.docs[0].id;
-        await updateDoc(doc(db, "notas_evaluaciones", docId), {
-          ...notaDoc,
-          updatedAt: serverTimestamp(),
+        const notaDoc = snapshot.docs[0];
+        await updateDoc(doc(db, "notas_evaluaciones", notaDoc.id), {
+          notas_criterios: notasCriteriosArray,
+          nota_definitiva: notasEst.nota_definitiva,
+          observacion: notasEst.observacion || "",
+          updated_at: serverTimestamp(),
         });
+        showToast.success("Nota actualizada correctamente");
+      } else {
+        // Crear nueva nota
+        await addDoc(collection(db, "notas_evaluaciones"), {
+          evaluacion_id: evaluacionSeleccionada,
+          estudiante_id: estudianteId,
+          notas_criterios: notasCriteriosArray,
+          nota_definitiva: notasEst.nota_definitiva,
+          observacion: notasEst.observacion || "",
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+        });
+        showToast.success("Nota guardada correctamente");
       }
-
-      // Marcar como guardado
-      setNotasEstudiantes((prev) => ({
-        ...prev,
-        [estudianteId]: { ...prev[estudianteId], guardado: true, guardando: false },
-      }));
-
-      showToast.success("Nota guardada correctamente");
     } catch (error) {
       console.error("Error al guardar nota:", error);
       showToast.error("Error al guardar la nota");
-      setNotasEstudiantes((prev) => ({
-        ...prev,
-        [estudianteId]: { ...prev[estudianteId], guardando: false },
-      }));
     }
   };
 
   const handleGuardarTodasNotas = async () => {
-    const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
-    if (!evaluacion || !user?.uid || estudiantes.length === 0) return;
-
     setGuardandoNotas(true);
     try {
-      const notasRef = collection(db, "notas_evaluaciones");
-      let notasGuardadas = 0;
-
-      // Guardar todas las notas en paralelo
-      const savePromises = estudiantes.map(async (estudiante) => {
-        if (!estudiante.id) return;
-
-        const notasData = notasEstudiantes[estudiante.id];
-        if (!notasData) return;
-
-        // Construir array de notas por criterio
-        const notasCriterios: NotasCriterios[] = evaluacion.criterios.map((criterio) => ({
-          criterio_numero: criterio.nro_criterio,
-          criterio_nombre: criterio.nombre,
-          ponderacion_maxima: criterio.ponderacion,
-          nota_obtenida: notasData.notas_criterios[criterio.nro_criterio] || 0,
-        }));
-
-        const notaDoc: Omit<NotasEvaluacion, "id"> = {
-          evaluacion_id: evaluacion.id!,
-          estudiante_id: estudiante.id,
-          estudiante_nombre: `${estudiante.nombres} ${estudiante.apellidos}`,
-          notas_criterios: notasCriterios,
-          nota_definitiva: notasData.nota_definitiva,
-          observacion: notasData.observacion || "",
-          docente_id: user.uid,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-
-        // Verificar si ya existe una nota para este estudiante
-        const q = query(
-          notasRef,
-          where("evaluacion_id", "==", evaluacion.id),
-          where("estudiante_id", "==", estudiante.id)
-        );
-        const existingSnapshot = await getDocs(q);
-
-        if (existingSnapshot.empty) {
-          await addDoc(notasRef, notaDoc);
-        } else {
-          const docId = existingSnapshot.docs[0].id;
-          await updateDoc(doc(db, "notas_evaluaciones", docId), {
-            ...notaDoc,
-            updatedAt: serverTimestamp(),
-          });
+      for (const estudiante of estudiantes) {
+        if (estudiante.id) {
+          await handleGuardarNota(estudiante.id);
         }
-        notasGuardadas++;
-      });
-
-      await Promise.all(savePromises);
-      showToast.success(`Notas guardadas correctamente para ${notasGuardadas} estudiantes`);
+      }
     } catch (error) {
       console.error("Error al guardar notas:", error);
-      showToast.error("Error al guardar las notas");
     } finally {
       setGuardandoNotas(false);
     }
@@ -433,119 +411,101 @@ export default function SubirNotas() {
   const handleCompletarEvaluacion = async () => {
     if (!evaluacionSeleccionada) return;
 
-    setCompletandoEvaluacion(true);
     try {
       await updateDoc(doc(db, "evaluaciones", evaluacionSeleccionada), {
         status: "EVALUADA",
-        updatedAt: serverTimestamp(),
+        updated_at: serverTimestamp(),
       });
 
-      showToast.success("Evaluación completada exitosamente");
-      setDialogCompletarOpen(false);
-      
-      // Recargar evaluaciones y limpiar selección
-      await loadEvaluacionesPendientes();
-      setEvaluacionSeleccionada("");
-      setEstudiantes([]);
-      setNotasEstudiantes({});
+      showToast.success("Evaluación marcada como completada");
     } catch (error) {
       console.error("Error al completar evaluación:", error);
       showToast.error("Error al completar la evaluación");
-    } finally {
-      setCompletandoEvaluacion(false);
     }
   };
 
   const handleGuardarYCompletar = async () => {
-    const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
-    if (!evaluacion || !user?.uid || estudiantes.length === 0) return;
-
     setGuardandoNotas(true);
+    setCompletandoEvaluacion(true);
+
     try {
-      const notasRef = collection(db, "notas_evaluaciones");
-      let notasGuardadas = 0;
+      // Primero guardar todas las notas
+      const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
+      if (!evaluacion || !evaluacionSeleccionada) {
+        throw new Error("No se encontró la evaluación");
+      }
 
-      // Paso 1: Guardar todas las notas en paralelo
-      const savePromises = estudiantes.map(async (estudiante) => {
-        if (!estudiante.id) return;
+      for (const estudiante of estudiantes) {
+        if (!estudiante.id) continue;
 
-        const notasData = notasEstudiantes[estudiante.id];
-        if (!notasData) return;
+        const notasEst = notasEstudiantes[estudiante.id];
+        if (!notasEst) continue;
 
-        // Construir array de notas por criterio
-        const notasCriterios: NotasCriterios[] = evaluacion.criterios.map((criterio) => ({
+        const notasCriteriosArray: NotasCriterios[] = evaluacion.criterios.map((criterio) => ({
           criterio_numero: criterio.nro_criterio,
           criterio_nombre: criterio.nombre,
           ponderacion_maxima: criterio.ponderacion,
-          nota_obtenida: notasData.notas_criterios[criterio.nro_criterio] || 0,
+          nota_obtenida: notasEst.notas_criterios[criterio.nro_criterio] || 0,
         }));
 
-        const notaDoc: Omit<NotasEvaluacion, "id"> = {
-          evaluacion_id: evaluacion.id!,
-          estudiante_id: estudiante.id,
-          estudiante_nombre: `${estudiante.nombres} ${estudiante.apellidos}`,
-          notas_criterios: notasCriterios,
-          nota_definitiva: notasData.nota_definitiva,
-          observacion: notasData.observacion || "",
-          docente_id: user.uid,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-
-        // Verificar si ya existe una nota para este estudiante
+        // Verificar si ya existe una nota
+        const notasRef = collection(db, "notas_evaluaciones");
         const q = query(
           notasRef,
-          where("evaluacion_id", "==", evaluacion.id),
+          where("evaluacion_id", "==", evaluacionSeleccionada),
           where("estudiante_id", "==", estudiante.id)
         );
-        const existingSnapshot = await getDocs(q);
+        const snapshot = await getDocs(q);
 
-        if (existingSnapshot.empty) {
-          await addDoc(notasRef, notaDoc);
+        if (!snapshot.empty) {
+          // Actualizar nota existente
+          const notaDoc = snapshot.docs[0];
+          await updateDoc(doc(db, "notas_evaluaciones", notaDoc.id), {
+            notas_criterios: notasCriteriosArray,
+            nota_definitiva: notasEst.nota_definitiva,
+            observacion: notasEst.observacion || "",
+            updated_at: serverTimestamp(),
+          });
         } else {
-          const docId = existingSnapshot.docs[0].id;
-          await updateDoc(doc(db, "notas_evaluaciones", docId), {
-            ...notaDoc,
-            updatedAt: serverTimestamp(),
+          // Crear nueva nota
+          await addDoc(collection(db, "notas_evaluaciones"), {
+            evaluacion_id: evaluacionSeleccionada,
+            estudiante_id: estudiante.id,
+            notas_criterios: notasCriteriosArray,
+            nota_definitiva: notasEst.nota_definitiva,
+            observacion: notasEst.observacion || "",
+            created_at: serverTimestamp(),
+            updated_at: serverTimestamp(),
           });
         }
-        notasGuardadas++;
-      });
+      }
 
-      await Promise.all(savePromises);
-
-      // Paso 2: Marcar evaluación como completada
-      await updateDoc(doc(db, "evaluaciones", evaluacion.id!), {
+      // Luego completar la evaluación
+      await updateDoc(doc(db, "evaluaciones", evaluacionSeleccionada), {
         status: "EVALUADA",
-        updatedAt: serverTimestamp(),
+        updated_at: serverTimestamp(),
       });
 
-      showToast.success(
-        `Evaluación completada exitosamente. Se guardaron ${notasGuardadas} calificaciones.`
-      );
+      showToast.success("Notas guardadas y evaluación completada");
 
-      // Cerrar dialog y resetear formulario
-      setDialogCompletarOpen(false);
-      
-      // Recargar evaluaciones pendientes y resetear selección
-      await loadEvaluacionesPendientes();
-      setEvaluacionSeleccionada("");
-      setEstudiantes([]);
-      setNotasEstudiantes({});
-
+      // Redirigir a la página de evaluaciones
+      setTimeout(() => {
+        window.location.href = "/app/dashboard-docente";
+      }, 1500);
     } catch (error) {
-      console.error("Error al guardar y completar evaluación:", error);
+      console.error("Error al guardar y completar:", error);
       showToast.error("Error al guardar las notas y completar la evaluación");
     } finally {
       setGuardandoNotas(false);
+      setCompletandoEvaluacion(false);
+      setDialogCompletarOpen(false);
     }
   };
-
 
   const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <Link href="/app/dashboard-docente">
@@ -561,107 +521,42 @@ export default function SubirNotas() {
         </div>
       </div>
 
-      {/* Selector de Evaluación */}
+      {/* Selector de Sección y Evaluación */}
       <Card>
         <CardHeader>
           <CardTitle>Seleccionar Evaluación</CardTitle>
           <CardDescription>
-            Elige la evaluación para la cual deseas registrar las notas
+            Primero elige la sección, luego la evaluación para registrar las notas
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-2 max-w-md">
-            <Label>Evaluación Pendiente</Label>
-            <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={openCombobox}
-                  className="w-full justify-between"
-                  disabled={isLoadingEvaluaciones}
-                >
-                  {evaluacionSeleccionada ? (
-                    <span className="truncate">
-                      {evaluaciones.find((ev) => ev.id === evaluacionSeleccionada)?.nombre_evaluacion}
-                    </span>
-                  ) : isLoadingEvaluaciones ? (
-                    "Cargando evaluaciones..."
-                  ) : evaluaciones.length === 0 ? (
-                    "No hay evaluaciones pendientes"
-                  ) : (
-                    "Buscar evaluación..."
-                  )}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[500px] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Buscar evaluación..." />
-                  <CommandList>
-                    <CommandEmpty>No se encontraron evaluaciones.</CommandEmpty>
-                    <CommandGroup>
-                      {evaluaciones.map((ev) => (
-                        <CommandItem
-                          key={ev.id}
-                          value={`${ev.nombre_evaluacion} ${ev.materia_nombre} ${ev.seccion_nombre}`}
-                          onSelect={() => {
-                            setEvaluacionSeleccionada(ev.id!);
-                            setOpenCombobox(false);
-                          }}
-                        >
-                          <Check
-                            className={`mr-2 h-4 w-4 ${
-                              evaluacionSeleccionada === ev.id ? "opacity-100" : "opacity-0"
-                            }`}
-                          />
-                          <div className="flex flex-col">
-                            <span className="font-medium">{ev.nombre_evaluacion}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {ev.materia_nombre} • {ev.seccion_nombre} • {ev.fecha} • {ev.porcentaje}%
-                            </span>
-                          </div>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+        <CardContent className="space-y-4">
+          {/* Selector de Sección */}
+          <div className="max-w-md">
+            <SectionSelector
+              secciones={secciones}
+              seccionSeleccionada={seccionSeleccionada}
+              onSelect={setSeccionSeleccionada}
+              isLoading={isLoadingEvaluaciones}
+              open={openSectionCombobox}
+              setOpen={setOpenSectionCombobox}
+            />
           </div>
 
-          {evaluacion && (
-            <div className="mt-4 p-4 bg-muted rounded-lg space-y-2">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Tipo:</span>
-                  <p className="font-medium">{evaluacion.tipo_evaluacion}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Materia:</span>
-                  <p className="font-medium">{evaluacion.materia_nombre}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Sección:</span>
-                  <p className="font-medium">{evaluacion.seccion_nombre}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Porcentaje:</span>
-                  <p className="font-medium">{evaluacion.porcentaje}%</p>
-                </div>
-              </div>
-              <div className="mt-2">
-                <span className="text-sm text-muted-foreground">Criterios de Evaluación:</span>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-1">
-                  {evaluacion.criterios.map((criterio) => (
-                    <Badge key={criterio.nro_criterio} variant="outline">
-                      {criterio.nombre} ({criterio.ponderacion} pts)
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+          {/* Selector de Evaluación - Solo se muestra si hay sección seleccionada */}
+          {seccionSeleccionada && (
+            <div className="max-w-md">
+              <EvaluationSelector
+                evaluaciones={evaluacionesFiltradas}
+                evaluacionSeleccionada={evaluacionSeleccionada}
+                onSelect={setEvaluacionSeleccionada}
+                isLoading={isLoadingEvaluaciones}
+                open={openCombobox}
+                setOpen={setOpenCombobox}
+              />
             </div>
           )}
+
+          {evaluacion && <EvaluationInfo evaluacion={evaluacion} />}
         </CardContent>
       </Card>
 
@@ -679,140 +574,28 @@ export default function SubirNotas() {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoadingEstudiantes ? (
-              <div className="flex justify-center items-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                <span className="ml-2">Cargando estudiantes...</span>
-              </div>
-            ) : estudiantes.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                No hay estudiantes registrados en esta sección
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[50px]">#</TableHead>
-                      <TableHead>Estudiante</TableHead>
-                      <TableHead>Cédula</TableHead>
-                      {evaluacion.criterios.map((criterio) => (
-                        <TableHead key={criterio.nro_criterio} className="text-center">
-                          {criterio.nombre}
-                          <br />
-                          <span className="text-xs text-muted-foreground">
-                            (0-{criterio.ponderacion})
-                          </span>
-                        </TableHead>
-                      ))}
-                      <TableHead className="text-center">Nota Final</TableHead>
-                      <TableHead className="w-[250px]">Observaciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {estudiantes.map((estudiante, index) => {
-                      const notasEst = estudiante.id ? notasEstudiantes[estudiante.id] : null;
-                      if (!notasEst || !estudiante.id) return null;
-
-                      return (
-                        <TableRow key={estudiante.id}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell className="font-medium">
-                            {estudiante.apellidos}, {estudiante.nombres}
-                          </TableCell>
-                          <TableCell>
-                            {estudiante.tipo_cedula}-{estudiante.cedula}
-                          </TableCell>
-                          {evaluacion.criterios.map((criterio) => (
-                            <TableCell key={criterio.nro_criterio} className="text-center">
-                              <Input
-                                type="number"
-                                min={0}
-                                max={criterio.ponderacion}
-                                step={1}
-                                value={notasEst.notas_criterios[criterio.nro_criterio] || 0}
-                                onChange={(e) =>
-                                  handleNotaChange(
-                                    estudiante.id!,
-                                    criterio.nro_criterio,
-                                    e.target.value
-                                  )
-                                }
-                                className="w-20 text-center mx-auto"
-                              />
-                            </TableCell>
-                          ))}
-                          <TableCell className="text-center font-bold">
-                            {notasEst.nota_definitiva.toFixed(2)}
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="text"
-                              placeholder="Observaciones (opcional)"
-                              value={notasEst.observacion || ""}
-                              onChange={(e) => handleObservacionChange(estudiante.id!, e.target.value)}
-                              className="w-full"
-                            />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
-            {estudiantes.length > 0 && (
-              <div className="mt-4 flex justify-end">
-                <Button
-                  onClick={() => setDialogCompletarOpen(true)}
-                  disabled={guardandoNotas}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  Guardar Todas las Notas
-                </Button>
-              </div>
-            )}
-
+            <GradesInputTable
+              estudiantes={estudiantes}
+              evaluacion={evaluacion}
+              notasEstudiantes={notasEstudiantes}
+              onNotaChange={handleNotaChange}
+              onObservacionChange={handleObservacionChange}
+              onGuardarTodasNotas={() => setDialogCompletarOpen(true)}
+              isLoading={isLoadingEstudiantes}
+              guardandoNotas={guardandoNotas}
+            />
           </CardContent>
         </Card>
       )}
 
       {/* Diálogo de Confirmación para Completar Evaluación */}
-      <Dialog open={dialogCompletarOpen} onOpenChange={setDialogCompletarOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Guardar y Completar Evaluación</DialogTitle>
-            <DialogDescription>
-              ¿Estás seguro de que deseas guardar las notas de todos los estudiantes y marcar esta evaluación como completada?
-              <br /><br />
-              Esta acción guardará las calificaciones y observaciones de <strong>{estudiantes.length} estudiantes</strong> y cambiará el estado de la evaluación a "EVALUADA".
-              <br /><br />
-              La evaluación ya no aparecerá en la lista de evaluaciones pendientes.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogCompletarOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleGuardarYCompletar}
-              disabled={guardandoNotas}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {guardandoNotas ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                "Guardar y Completar"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CompletionDialog
+        open={dialogCompletarOpen}
+        onOpenChange={setDialogCompletarOpen}
+        onConfirm={handleGuardarYCompletar}
+        isLoading={guardandoNotas}
+        totalEstudiantes={estudiantes.length}
+      />
     </div>
   );
 }

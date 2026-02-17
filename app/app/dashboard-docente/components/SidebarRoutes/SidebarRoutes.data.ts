@@ -1,4 +1,4 @@
-import { BookOpen, FileEdit, FileText, Calendar, Users, ClipboardList, Home } from "lucide-react";
+import { BookOpen, Calendar, ClipboardList, FileEdit, FileText, Home, Users } from "lucide-react";
 
 // Rutas del Dashboard de Docentes
 export const DataDocenteSidebar = [
@@ -20,7 +20,7 @@ export const DataDocenteSidebar = [
     {
         icon: FileEdit,
         label: "Cargar Notas",
-        href: "/app/dashboard-docente/notas/cargar-notas", 
+        href: "/app/dashboard-docente/notas/subir-notas", 
     },
     {
         icon: FileText,
@@ -36,5 +36,15 @@ export const DataDocenteSidebar = [
         icon: Calendar,
         label: "Horario",
         href: "/app/dashboard-docente/horario", 
+    },
+    {
+        icon: FileEdit, // Using FileEdit as placeholder, or could use ClipboardCheck if available
+        label: "Registrar Asistencia",
+        href: "/app/dashboard-docente/asistencia",
+    },
+    {
+        icon: Users, // Using Users as placeholder or ListChecks
+        label: "Ver Asistencia",
+        href: "/app/dashboard-docente/asistencia/ver",
     },
 ]

@@ -155,7 +155,7 @@ export function TableStudentView({
                         : "bg-red-100 text-red-800"
                     }`}>
                       {seccion
-                        ? `${seccion.grado_año}° ${seccion.nivel_educativo} ${seccion.seccion}`
+                        ? `${seccion.grado_año} ${seccion.nivel_educativo} ${seccion.seccion}`
                         : "NINGUNO"}
                     </span>
                   </TableCell>

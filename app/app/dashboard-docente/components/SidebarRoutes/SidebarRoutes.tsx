@@ -1,10 +1,9 @@
 "use client";
 
-import React from "react";
-import SidebarItem from "../SidebarItem/SidebarItem";
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { BookOpen, Users, Calendar, ClipboardList, FileEdit, FileText, Home } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { motion } from "framer-motion";
+import { BookOpen, Calendar, FileText } from "lucide-react";
+import SidebarItem from "../SidebarItem/SidebarItem";
 import { DataDocenteSidebar } from "./SidebarRoutes.data";
 
 export function SidebarRoutes() {
@@ -103,12 +102,30 @@ export function SidebarRoutes() {
               whileHover={{ scale: 1.02 }}
               transition={{ duration: 0.2 }}
             >
-              <SidebarItem
-                key={DataDocenteSidebar[6].href}
-                item={DataDocenteSidebar[6]}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all hover:bg-orange-50 dark:hover:bg-slate-700"
-              />
+              <AccordionTrigger className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all hover:no-underline hover:bg-orange-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-orange-100 [&[data-state=open]]:dark:bg-slate-600">
+                <Calendar className="w-5 h-5 text-orange-600 dark:text-orange-400 group-hover:text-orange-700 group-data-[state=open]:text-orange-700 dark:group-data-[state=open]:text-orange-300" />
+                <span className="font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">
+                  Horarios
+                </span>
+              </AccordionTrigger>
             </motion.div>
+            <AccordionContent className="pl-3 pt-2 space-y-2">
+               <SidebarItem
+                key={DataDocenteSidebar[6].href}
+                item={{ ...DataDocenteSidebar[6], label: "Ver Mi Horario" }} // Rename for clarity
+                className="px-3 py-2 text-sm rounded-md hover:bg-orange-50 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              />
+              <SidebarItem
+                key={DataDocenteSidebar[7].href}
+                item={DataDocenteSidebar[7]}
+                className="px-3 py-2 text-sm rounded-md hover:bg-orange-50 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              />
+               <SidebarItem
+                key={DataDocenteSidebar[8].href}
+                item={DataDocenteSidebar[8]}
+                className="px-3 py-2 text-sm rounded-md hover:bg-orange-50 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              />
+            </AccordionContent>
           </AccordionItem>
         </Accordion>
       </div>

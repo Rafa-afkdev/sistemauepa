@@ -11,6 +11,17 @@ export interface NotasCriterios {
 }
 
 /**
+ * Interfaz para el historial de cambios de una nota
+ */
+export interface CambioNota {
+  fecha: Timestamp;
+  nota_anterior: number;
+  nota_nueva: number;
+  motivo: string;
+  usuario_id: string;
+}
+
+/**
  * Interfaz para almacenar las notas de un estudiante en una evaluación
  */
 export interface NotasEvaluacion {
@@ -22,6 +33,7 @@ export interface NotasEvaluacion {
   nota_definitiva: number; // Suma total de notas_obtenidas
   observacion?: string; // Observaciones del docente sobre la nota
   docente_id: string; // ID del docente que registró
+  historial_cambios?: CambioNota[]; // Historial de modificaciones
   createdAt?: Timestamp | FieldValue;
   updatedAt?: Timestamp | FieldValue;
 }

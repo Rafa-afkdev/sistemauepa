@@ -741,7 +741,7 @@ export function CreateUpdateStudents({
              // Registrar historial si cambia el estatus
              const seccionActual = (await getDocument(`secciones/${selectedSeccion}`)) as Secciones;
              
-             let nuevaSeccionNombre = `${seccionActual.grado_año}° ${seccionActual.nivel_educativo} - ${seccionActual.seccion}`;
+             let nuevaSeccionNombre = `${seccionActual.grado_año} ${seccionActual.nivel_educativo} - ${seccionActual.seccion}`;
              let nuevaSeccionId = selectedSeccion;
              
              if (statusInscripcion === 'retirado') {
@@ -1140,7 +1140,7 @@ return (
                         <SelectLabel>Secciones Disponibles</SelectLabel>
                         {seccionesFiltradas.map(seccion => (
                           <SelectItem key={seccion.id} value={seccion.id!}>
-                            {seccion.grado_año}° {seccion.nivel_educativo} - {seccion.seccion} 
+                            {seccion.grado_año} {seccion.nivel_educativo} - {seccion.seccion} 
                              (Disponibles: {seccion.limite_estudiantes - seccion.estudiantes_inscritos})
                           </SelectItem>
                         ))}

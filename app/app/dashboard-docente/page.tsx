@@ -185,12 +185,14 @@ export default function DashboardDocentePage() {
               </p>
             </Link>
           </div>
-          <div className="p-4 border rounded-lg hover:bg-accent cursor-pointer transition-colors">
-            <h3 className="font-semibold mb-2">Horario de Clases</h3>
-            <p className="text-sm text-muted-foreground">
-              Consulta tu horario semanal
-            </p>
-          </div>
+          <Link href="/app/dashboard-docente/horario">
+            <div className="p-4 border rounded-lg hover:bg-accent cursor-pointer transition-colors">
+              <h3 className="font-semibold mb-2">Horario de Clases</h3>
+              <p className="text-sm text-muted-foreground">
+                Consulta tu horario semanal
+              </p>
+            </div>
+          </Link>
         </CardContent>
       </Card>
     </div>

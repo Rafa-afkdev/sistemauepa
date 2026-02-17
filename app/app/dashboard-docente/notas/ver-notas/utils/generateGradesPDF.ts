@@ -42,22 +42,23 @@ export async function generarReportePDF(
   // Dimensiones de página A4 HORIZONTAL (landscape)
   const pageWidth = 841.89;   // A4 horizontal width
   const pageHeight = 595.28;  // A4 horizontal height
-  const margin = 50;
-  const lineHeight = 15;
-  const bottomMargin = 50;
+  const margin = 30;  // Reduced margin for more space
+  const lineHeight = 18;  // Increased line height
+  const bottomMargin = 40;  // Reduced bottom margin
 
-  // Definir columnas de la tabla con más espacio disponible
-  const colNumero = 35;
-  const colCedula = 80;
+  // Definir columnas de la tabla para usar TODO el ancho disponible
+  const anchoDisponible = pageWidth - (margin * 2);  // Total available width
+  const colNumero = 40;
+  const colCedula = 85;
   const colNombre = 200;
+  const colNotaFinal = 70;
   
-  // Calcular dinámicamente el ancho de cada criterio con más espacio
+  // Calcular dinámicamente el ancho de cada criterio usando el espacio restante
   const numCriterios = evaluacion.criterios.length;
-  const anchoDisponibleCriterios = 350; // Más espacio para criterios en horizontal
-  const colCriterio = Math.min(60, anchoDisponibleCriterios / numCriterios);
-  const colNotaFinal = 60;
+  const anchoRestante = anchoDisponible - colNumero - colCedula - colNombre - colNotaFinal;
+  const colCriterio = anchoRestante / numCriterios;  // Distribute remaining space equally
   
-  const anchoTotal = colNumero + colCedula + colNombre + (colCriterio * numCriterios) + colNotaFinal;
+  const anchoTotal = anchoDisponible;  // Use full width
 
   let currentPage: PDFPage | null = null;
   let currentY = 0;
@@ -74,20 +75,20 @@ export async function generarReportePDF(
     page.drawImage(logo2Img, { x: width / 2 - 95, y: yLogos, width: 180, height: 45 });
     page.drawImage(logo3Img, { x: width - 60 - 60, y: yLogos, width: 60, height: 60 });
 
-    // Título principal
-    const titulo = "REPORTE DE CALIFICACIONES";
-    const tituloWidth = helveticaBold.widthOfTextAtSize(titulo, 20);
+    // Título principal - sin azul
+    const titulo = "REPORTE DE NOTAS";
+    const tituloWidth = helveticaBold.widthOfTextAtSize(titulo, 22);
     page.drawText(titulo, {
       x: width / 2 - tituloWidth / 2,
       y: height - 135,
-      size: 20,
+      size: 22,  // Increased size
       font: helveticaBold,
-      color: rgb(0, 0, 0.6),
+      color: rgb(0, 0, 0),  // Changed to black
     });
 
     // Información de la evaluación
     let infoY = height - 160;
-    const infoSize = 9;
+    const infoSize = 10;  // Increased from 9
     
     page.drawText(`Evaluación: ${evaluacion.nombre_evaluacion || ""}`, {
       x: margin,
@@ -119,9 +120,20 @@ export async function generarReportePDF(
       font: helvetica,
     });
     
+    
     infoY -= 12;
     
-    page.drawText(`Fecha: ${evaluacion.fecha || ""}`, {
+    // Formatear fecha a dd/mm/yyyy
+    const formatearFecha = (fecha: string) => {
+      if (!fecha) return "";
+      const partes = fecha.split("-");
+      if (partes.length === 3) {
+        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+      }
+      return fecha;
+    };
+    
+    page.drawText(`Fecha: ${formatearFecha(evaluacion.fecha || "")}`, {
       x: margin,
       y: infoY,
       size: infoSize,
@@ -138,13 +150,13 @@ export async function generarReportePDF(
     // Cabecera de la tabla
     const headerY = height - 200;
 
-    // Fondo del encabezado (rectángulo azul/gris)
+    // Fondo del encabezado - gris claro en lugar de azul
     page.drawRectangle({
       x: margin,
-      y: headerY - 25,
+      y: headerY - 28,
       width: anchoTotal,
-      height: 25,
-      color: rgb(0.9, 0.9, 0.95), // Gris azulado claro
+      height: 28,  // Increased height
+      color: rgb(0.92, 0.92, 0.92), // Light gray instead of blue
     });
 
     // Línea superior de la tabla (más gruesa)
@@ -152,15 +164,15 @@ export async function generarReportePDF(
       start: { x: margin, y: headerY },
       end: { x: margin + anchoTotal, y: headerY },
       thickness: 2,
-      color: rgb(0, 0, 0.6),
+      color: rgb(0, 0, 0),  // Black instead of blue
     });
 
     // Línea inferior del encabezado (más gruesa)
     page.drawLine({
-      start: { x: margin, y: headerY - 25 },
-      end: { x: margin + anchoTotal, y: headerY - 25 },
+      start: { x: margin, y: headerY - 28 },
+      end: { x: margin + anchoTotal, y: headerY - 28 },
       thickness: 2,
-      color: rgb(0, 0, 0.6),
+      color: rgb(0, 0, 0),  // Black instead of blue
     });
 
     // Textos del encabezado
@@ -168,58 +180,60 @@ export async function generarReportePDF(
     
     // N°
     page.drawText("N°", {
-      x: xPos + colNumero / 2 - 5,
-      y: headerY - 17,
-      size: 10,
+      x: xPos + colNumero / 2 - 6,
+      y: headerY - 19,
+      size: 11,  // Increased from 10
       font: helveticaBold,
-      color: rgb(0, 0, 0.6),
+      color: rgb(0, 0, 0),  // Black instead of blue
     });
     xPos += colNumero;
 
     // CÉDULA
     page.drawText("CÉDULA", {
-      x: xPos + colCedula / 2 - 20,
-      y: headerY - 17,
-      size: 10,
+      x: xPos + colCedula / 2 - 22,
+      y: headerY - 19,
+      size: 11,  // Increased
       font: helveticaBold,
-      color: rgb(0, 0, 0.6),
+      color: rgb(0, 0, 0),  // Black
     });
     xPos += colCedula;
 
     // APELLIDOS Y NOMBRES
     page.drawText("APELLIDOS Y NOMBRES", {
       x: xPos + 10,
-      y: headerY - 17,
-      size: 10,
+      y: headerY - 19,
+      size: 11,  // Increased
       font: helveticaBold,
-      color: rgb(0, 0, 0.6),
+      color: rgb(0, 0, 0),  // Black
     });
     xPos += colNombre;
 
-    // Criterios (abreviados)
+    // Criterios (nombres completos o casi completos)
     evaluacion.criterios.forEach((criterio) => {
-      const criterioText = criterio.nombre.substring(0, 10);
-      const criterioWidth = helveticaBold.widthOfTextAtSize(criterioText, 8);
+      const maxChars = Math.floor(colCriterio / 5);  // Dynamic based on column width
+      const criterioText = criterio.nombre.length > maxChars ? 
+        criterio.nombre.substring(0, maxChars) : criterio.nombre;
+      const criterioWidth = helveticaBold.widthOfTextAtSize(criterioText, 9);
       page.drawText(criterioText, {
         x: xPos + colCriterio / 2 - criterioWidth / 2,
-        y: headerY - 17,
-        size: 8,
+        y: headerY - 19,
+        size: 9,  // Increased
         font: helveticaBold,
-        color: rgb(0, 0, 0.6),
+        color: rgb(0, 0, 0),  // Black
       });
       xPos += colCriterio;
     });
 
     // FINAL
     page.drawText("FINAL", {
-      x: xPos + colNotaFinal / 2 - 12,
-      y: headerY - 17,
-      size: 10,
+      x: xPos + colNotaFinal / 2 - 14,
+      y: headerY - 19,
+      size: 11,  // Increased
       font: helveticaBold,
-      color: rgb(0, 0, 0.6),
+      color: rgb(0, 0, 0),  // Black
     });
 
-    return { page, currentY: headerY - 25, pageStartY: headerY };
+    return { page, currentY: headerY - 28, pageStartY: headerY };
   };
 
   // Función para dibujar líneas verticales
@@ -311,60 +325,60 @@ export async function generarReportePDF(
 
     // N°
     const numeroText = `${index + 1}`;
-    const numeroWidth = helvetica.widthOfTextAtSize(numeroText, 9);
+    const numeroWidth = helvetica.widthOfTextAtSize(numeroText, 10);
     currentPage!.drawText(numeroText, {
       x: xPos + colNumero / 2 - numeroWidth / 2,
-      y: currentY - lineHeight + 5,
-      size: 9,
+      y: currentY - lineHeight + 6,
+      size: 10,  // Increased from 9
       font: helvetica,
     });
     xPos += colNumero;
 
     // CÉDULA
     const cedulaText = `${nota.estudiante?.tipo_cedula || "V"}-${nota.estudiante?.cedula}`;
-    const cedulaWidth = helvetica.widthOfTextAtSize(cedulaText, 8);
+    const cedulaWidth = helvetica.widthOfTextAtSize(cedulaText, 9);
     currentPage!.drawText(cedulaText, {
       x: xPos + colCedula / 2 - cedulaWidth / 2,
-      y: currentY - lineHeight + 5,
-      size: 8,
+      y: currentY - lineHeight + 6,
+      size: 9,  // Increased from 8
       font: helvetica,
     });
     xPos += colCedula;
 
     // APELLIDOS Y NOMBRES
-    const nombreCompleto = `${nota.estudiante?.apellidos || ""} ${nota.estudiante?.nombres || ""}`.trim().substring(0, 35);
+    const nombreCompleto = `${nota.estudiante?.apellidos || ""} ${nota.estudiante?.nombres || ""}`.trim().substring(0, 40);  // More characters
     currentPage!.drawText(nombreCompleto, {
       x: xPos + 5,
-      y: currentY - lineHeight + 5,
-      size: 8,
+      y: currentY - lineHeight + 6,
+      size: 9,  // Increased from 8
       font: helvetica,
     });
     xPos += colNombre;
 
-    // Notas por criterio
+    // Notas por criterio - números enteros
     evaluacion.criterios.forEach((criterio) => {
       const notaCriterio = nota.notas_criterios.find(
         (nc) => nc.criterio_numero === criterio.nro_criterio
       );
-      const notaValor = (notaCriterio?.nota_obtenida || 0).toFixed(1);
-      const notaWidth = helvetica.widthOfTextAtSize(notaValor, 8);
+      const notaValor = Math.round(notaCriterio?.nota_obtenida || 0).toString();  // Integer
+      const notaWidth = helvetica.widthOfTextAtSize(notaValor, 9);
       currentPage!.drawText(notaValor, {
         x: xPos + colCriterio / 2 - notaWidth / 2,
-        y: currentY - lineHeight + 5,
-        size: 8,
+        y: currentY - lineHeight + 6,
+        size: 9,  // Increased from 8
         font: helvetica,
       });
       xPos += colCriterio;
     });
 
-    // Nota final (color verde/rojo según aprobado/reprobado)
+    // Nota final (color verde/rojo según aprobado/reprobado) - número entero
     const notaAprobada = nota.nota_definitiva >= 10;
-    const notaFinalText = nota.nota_definitiva.toFixed(2);
-    const notaFinalWidth = helveticaBold.widthOfTextAtSize(notaFinalText, 9);
+    const notaFinalText = Math.round(nota.nota_definitiva).toString();  // Integer
+    const notaFinalWidth = helveticaBold.widthOfTextAtSize(notaFinalText, 10);
     currentPage!.drawText(notaFinalText, {
       x: xPos + colNotaFinal / 2 - notaFinalWidth / 2,
-      y: currentY - lineHeight + 5,
-      size: 9,
+      y: currentY - lineHeight + 6,
+      size: 10,  // Increased from 9
       font: helveticaBold,
       color: notaAprobada ? rgb(0, 0.6, 0) : rgb(0.8, 0, 0),
     });
@@ -405,18 +419,18 @@ export async function generarReportePDF(
     start: { x: margin, y: currentY },
     end: { x: margin + anchoTotal, y: currentY },
     thickness: 1.5,
-    color: rgb(0, 0, 0.6),
+    color: rgb(0, 0, 0),  // Black instead of blue
   });
 
   currentY -= 15;
 
-  // Título de estadísticas
+  // Título de estadísticas - sin azul
   currentPage!.drawText("ESTADÍSTICAS GENERALES", {
     x: margin,
     y: currentY,
-    size: 14,
+    size: 16,  // Increased from 14
     font: helveticaBold,
-    color: rgb(0, 0, 0.6),
+    color: rgb(0, 0, 0),  // Black instead of blue
   });
   
   currentY -= 25;
@@ -430,31 +444,31 @@ export async function generarReportePDF(
   currentPage!.drawText("Promedio:", {
     x: col1X,
     y: currentY,
-    size: 11,
+    size: 12,  // Increased from 11
     font: helveticaBold,
   });
   
   currentPage!.drawText(estadisticas.promedio, {
-    x: col1X + 70,
+    x: col1X + 75,
     y: currentY,
-    size: 11,
+    size: 12,  // Increased
     font: helvetica,
-    color: rgb(0, 0, 0.8),
+    color: rgb(0, 0, 0),  // Black
   });
   
   currentPage!.drawText("Total de Estudiantes:", {
     x: col2X,
     y: currentY,
-    size: 11,
+    size: 12,  // Increased
     font: helveticaBold,
   });
   
   currentPage!.drawText(estadisticas.total.toString(), {
-    x: col2X + 140,
+    x: col2X + 145,
     y: currentY,
-    size: 11,
+    size: 12,  // Increased
     font: helvetica,
-    color: rgb(0, 0, 0.8),
+    color: rgb(0, 0, 0),  // Black
   });
   
   currentY -= 18;
@@ -463,14 +477,14 @@ export async function generarReportePDF(
   currentPage!.drawText("Nota Máxima:", {
     x: col1X,
     y: currentY,
-    size: 11,
+    size: 12,  // Increased
     font: helveticaBold,
   });
   
   currentPage!.drawText(estadisticas.notaMaxima, {
-    x: col1X + 70,
+    x: col1X + 75,
     y: currentY,
-    size: 11,
+    size: 12,  // Increased
     font: helvetica,
     color: rgb(0, 0.6, 0),
   });
@@ -478,14 +492,14 @@ export async function generarReportePDF(
   currentPage!.drawText("Aprobados:", {
     x: col2X,
     y: currentY,
-    size: 11,
+    size: 12,  // Increased
     font: helveticaBold,
   });
   
   currentPage!.drawText(estadisticas.aprobados.toString(), {
-    x: col2X + 140,
+    x: col2X + 145,
     y: currentY,
-    size: 11,
+    size: 12,  // Increased
     font: helvetica,
     color: rgb(0, 0.6, 0),
   });
@@ -496,14 +510,14 @@ export async function generarReportePDF(
   currentPage!.drawText("Nota Mínima:", {
     x: col1X,
     y: currentY,
-    size: 11,
+    size: 12,  // Increased
     font: helveticaBold,
   });
   
   currentPage!.drawText(estadisticas.notaMinima, {
-    x: col1X + 70,
+    x: col1X + 75,
     y: currentY,
-    size: 11,
+    size: 12,  // Increased
     font: helvetica,
     color: rgb(0.8, 0, 0),
   });
@@ -511,14 +525,14 @@ export async function generarReportePDF(
   currentPage!.drawText("Reprobados:", {
     x: col2X,
     y: currentY,
-    size: 11,
+    size: 12,  // Increased
     font: helveticaBold,
   });
   
   currentPage!.drawText(estadisticas.reprobados.toString(), {
-    x: col2X + 140,
+    x: col2X + 145,
     y: currentY,
-    size: 11,
+    size: 12,  // Increased
     font: helvetica,
     color: rgb(0.8, 0, 0),
   });

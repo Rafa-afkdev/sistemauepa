@@ -220,6 +220,39 @@ export default function AsignacionHorarios() {
        return;
     }
     
+    // VALIDACIÓN 1: Hora de inicio debe ser menor que hora de fin
+    if (horaInicio >= horaFin) {
+        showToast.error("La hora de inicio debe ser anterior a la hora de fin");
+        return;
+    }
+    
+    // VALIDACIÓN 2: Verificar solapamiento de horas con otros bloques del mismo docente en el mismo día
+    const horariosDelDia = horarios.filter(h => 
+        h.dia === selectedCell.dia && 
+        h.bloque_horario !== selectedCell.bloque // Excluir el bloque actual
+    );
+    
+    for (const h of horariosDelDia) {
+        const hora24Inicio = horaInicio;
+        const hora24Fin = horaFin;
+        const horaExistenteInicio = formatTime24h(h.hora_inicio || "");
+        const horaExistenteFin = formatTime24h(h.hora_fin || "");
+        
+        // Verificar si hay solapamiento
+        const hayConflicto = (
+            (hora24Inicio >= horaExistenteInicio && hora24Inicio < horaExistenteFin) || // Inicio dentro de otro bloque
+            (hora24Fin > horaExistenteInicio && hora24Fin <= horaExistenteFin) ||       // Fin dentro de otro bloque
+            (hora24Inicio <= horaExistenteInicio && hora24Fin >= horaExistenteFin)      // Abarca completamente otro bloque
+        );
+        
+        if (hayConflicto) {
+            showToast.error(
+                `Conflicto de horario: Se solapa con ${h.nombre_materia} (${h.hora_inicio} - ${h.hora_fin}) en el Bloque ${h.bloque_horario}°`
+            );
+            return;
+        }
+    }
+    
     setLoading(true);
     try {
         // VALIDATION: Check for collision (Same Section, Period, Day, Block)
@@ -542,9 +575,34 @@ export default function AsignacionHorarios() {
                               <SelectContent>
                                   {(() => {
                                       const asignacion = asignaciones.find(a => a.id === selectedAsignacionId);
-                                      if (!asignacion?.secciones_id) return null;
+                                      if (!asignacion?.secciones_id || !selectedCell) return null;
                                       
-                                      return asignacion.secciones_id.map(secId => {
+                                      // Filtrar secciones que ya tienen esta materia asignada en este día
+                                      const seccionesDisponibles = asignacion.secciones_id.filter(secId => {
+                                          // Buscar si ya existe una asignación de esta materia para esta sección en este día
+                                          const yaAsignada = horarios.some(h => 
+                                              h.id_materia === asignacion.materia_id &&
+                                              h.id_seccion === secId &&
+                                              h.dia === selectedCell.dia &&
+                                              // Excluir el bloque actual (para permitir edición)
+                                              h.bloque_horario !== selectedCell.bloque
+                                          );
+                                          
+                                          return !yaAsignada; // Solo mostrar si NO está asignada
+                                      });
+                                      
+                                      if (seccionesDisponibles.length === 0) {
+                                          return (
+                                              <div className="p-3 text-sm text-center text-amber-600">
+                                                  <p className="font-medium">No hay secciones disponibles</p>
+                                                  <p className="text-xs mt-1 text-muted-foreground">
+                                                      Esta materia ya está asignada a todas las secciones en este día
+                                                  </p>
+                                              </div>
+                                          );
+                                      }
+                                      
+                                      return seccionesDisponibles.map(secId => {
                                           const sec = secciones.find(s => s.id === secId);
                                           return (
                                               <SelectItem key={secId} value={secId}>

@@ -6,18 +6,26 @@ import { Input } from "@/components/ui/input";
 import { useUser } from "@/hooks/use-user";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
 import { Evaluaciones } from "@/interfaces/evaluaciones.interface";
-import { NotasEvaluacion } from "@/interfaces/notas-evaluaciones.interface";
+import { NotasCriterios, NotasEvaluacion } from "@/interfaces/notas-evaluaciones.interface";
 import { db } from "@/lib/data/firebase";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
-import { ChevronLeft, Download, Loader2, Search } from "lucide-react";
+import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, updateDoc, where } from "firebase/firestore";
+import { ChevronLeft, FileText, Loader2, Search } from "lucide-react";
 import Link from "next/link";
 import { showToast } from "nextjs-toast-notify";
 import { useEffect, useState } from "react";
+import { EditGradeDialog } from "./components/EditGradeDialog";
 import { EvaluationDetails } from "./components/EvaluationDetails";
 import { EvaluationSelector } from "./components/EvaluationSelector";
 import { GradesStatistics } from "./components/GradesStatistics";
 import { GradesTable } from "./components/GradesTable";
+import { SectionSelector } from "./components/SectionSelector";
 import { generarReportePDF } from "./utils/generateGradesPDF";
+
+interface Seccion {
+  id: string;
+  nombre: string;
+  evaluacionesCount?: number;
+}
 
 interface EvaluacionConDetalles extends Evaluaciones {
   materia_nombre?: string;
@@ -39,13 +47,19 @@ interface Estadisticas {
 
 export default function VerNotas() {
   const { user } = useUser();
+  const [secciones, setSecciones] = useState<Seccion[]>([]);
+  const [seccionSeleccionada, setSeccionSeleccionada] = useState<string>("");
   const [evaluaciones, setEvaluaciones] = useState<EvaluacionConDetalles[]>([]);
+  const [evaluacionesFiltradas, setEvaluacionesFiltradas] = useState<EvaluacionConDetalles[]>([]);
   const [evaluacionSeleccionada, setEvaluacionSeleccionada] = useState<string>("");
   const [notas, setNotas] = useState<NotaConEstudiante[]>([]);
   const [notasFiltradas, setNotasFiltradas] = useState<NotaConEstudiante[]>([]);
   const [isLoadingEvaluaciones, setIsLoadingEvaluaciones] = useState(true);
   const [isLoadingNotas, setIsLoadingNotas] = useState(false);
+  const [openSectionCombobox, setOpenSectionCombobox] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [notaAEditar, setNotaAEditar] = useState<NotaConEstudiante | null>(null);
 
   // Cargar evaluaciones completadas del docente
   useEffect(() => {
@@ -53,6 +67,21 @@ export default function VerNotas() {
       loadEvaluacionesCompletadas();
     }
   }, [user]);
+
+  // Filtrar evaluaciones cuando cambia la sección seleccionada
+  useEffect(() => {
+    if (seccionSeleccionada) {
+      const filtradas = evaluaciones.filter((ev) => ev.seccion_id === seccionSeleccionada);
+      setEvaluacionesFiltradas(filtradas);
+      // Resetear evaluación seleccionada si no está en la nueva lista
+      if (evaluacionSeleccionada && !filtradas.find((ev) => ev.id === evaluacionSeleccionada)) {
+        setEvaluacionSeleccionada("");
+      }
+    } else {
+      setEvaluacionesFiltradas([]);
+      setEvaluacionSeleccionada("");
+    }
+  }, [seccionSeleccionada, evaluaciones]);
 
   // Cargar notas cuando se selecciona una evaluación
   useEffect(() => {
@@ -134,6 +163,49 @@ export default function VerNotas() {
       });
 
       setEvaluaciones(evaluacionesData);
+
+      // Extraer secciones únicas y contar evaluaciones por sección
+      const seccionesMap = new Map<string, Seccion>();
+      evaluacionesData.forEach((ev) => {
+        if (ev.seccion_id && ev.seccion_nombre) {
+          if (seccionesMap.has(ev.seccion_id)) {
+            const seccion = seccionesMap.get(ev.seccion_id)!;
+            seccion.evaluacionesCount = (seccion.evaluacionesCount || 0) + 1;
+          } else {
+            seccionesMap.set(ev.seccion_id, {
+              id: ev.seccion_id,
+              nombre: ev.seccion_nombre,
+              evaluacionesCount: 1,
+            });
+          }
+        }
+      });
+
+      // Ordenar secciones por grado y sección
+      const seccionesOrdenadas = Array.from(seccionesMap.values()).sort((a, b) => {
+        // Extraer grado y sección del nombre (ej: "1° \"A\"")
+        const matchA = a.nombre.match(/(\d+)°\s*"([A-Z])"/);
+        const matchB = b.nombre.match(/(\d+)°\s*"([A-Z])"/);
+        
+        if (matchA && matchB) {
+          const gradoA = parseInt(matchA[1]);
+          const gradoB = parseInt(matchB[1]);
+          const seccionA = matchA[2];
+          const seccionB = matchB[2];
+          
+          // Primero ordenar por grado
+          if (gradoA !== gradoB) {
+            return gradoA - gradoB;
+          }
+          // Si el grado es igual, ordenar por sección (A, B, C...)
+          return seccionA.localeCompare(seccionB);
+        }
+        
+        // Fallback: orden alfabético simple
+        return a.nombre.localeCompare(b.nombre);
+      });
+
+      setSecciones(seccionesOrdenadas);
     } catch (error) {
       console.error("Error al cargar evaluaciones:", error);
       showToast.error("Error al cargar evaluaciones completadas");
@@ -147,39 +219,96 @@ export default function VerNotas() {
 
     setIsLoadingNotas(true);
     try {
-      const notasRef = collection(db, "notas_evaluaciones");
-      const q = query(notasRef, where("evaluacion_id", "==", evaluacionSeleccionada));
-      const snapshot = await getDocs(q);
+      // 1. Obtener la evaluación para saber la sección
+      const evaluacion = evaluaciones.find(e => e.id === evaluacionSeleccionada);
+      if (!evaluacion?.seccion_id) {
+        setIsLoadingNotas(false);
+        return;
+      }
 
-      const notasData = await Promise.all(
-        snapshot.docs.map(async (docSnap) => {
-          const notaData = { id: docSnap.id, ...docSnap.data() } as NotaConEstudiante;
-
-          // Cargar datos del estudiante
-          if (notaData.estudiante_id) {
-            try {
-              const estudianteDoc = await getDoc(doc(db, "estudiantes", notaData.estudiante_id));
-              if (estudianteDoc.exists()) {
-                notaData.estudiante = { id: estudianteDoc.id, ...estudianteDoc.data() } as Estudiantes;
-              }
-            } catch (error) {
-              console.error("Error al cargar estudiante:", error);
-            }
-          }
-
-          return notaData;
-        })
+      // 2. Obtener estudiantes inscritos en la sección (ACTIVOS)
+      const inscripcionesRef = collection(db, "estudiantes_inscritos");
+      const qInscripciones = query(
+        inscripcionesRef,
+        where("id_seccion", "==", evaluacion.seccion_id),
+        where("estado", "==", "activo")
       );
+      const inscripcionesSnapshot = await getDocs(qInscripciones);
+      const estudianteIds = inscripcionesSnapshot.docs.map(doc => doc.data().id_estudiante);
+
+      // 3. Obtener datos de estudiantes
+      const estudiantesRef = collection(db, "estudiantes");
+      const estudiantesMap = new Map<string, Estudiantes>();
+      
+      // Fetch en lotes de 10
+      for (let i = 0; i < estudianteIds.length; i += 10) {
+        const batch = estudianteIds.slice(i, i + 10);
+        if (batch.length === 0) continue;
+        const qEstudiantes = query(estudiantesRef, where("__name__", "in", batch));
+        const estudiantesSnapshot = await getDocs(qEstudiantes);
+        estudiantesSnapshot.docs.forEach(doc => {
+          estudiantesMap.set(doc.id, { id: doc.id, ...doc.data() } as Estudiantes);
+        });
+      }
+
+      // 4. Obtener notas existentes
+      const notasRef = collection(db, "notas_evaluaciones");
+      const qNotas = query(notasRef, where("evaluacion_id", "==", evaluacionSeleccionada));
+      const notasSnapshot = await getDocs(qNotas);
+      const notasMap = new Map<string, NotasEvaluacion>();
+      
+      notasSnapshot.docs.forEach(doc => {
+        const data = doc.data() as NotasEvaluacion;
+        if (data.estudiante_id) {
+          notasMap.set(data.estudiante_id, { id: doc.id, ...data });
+        }
+      });
+
+      // 5. Combinar datos
+      const listaFinal: NotaConEstudiante[] = [];
+      
+      estudiantesMap.forEach((estudiante, estudianteId) => {
+        const notaExistente = notasMap.get(estudianteId);
+        
+        if (notaExistente) {
+          listaFinal.push({
+            ...notaExistente,
+            estudiante
+          });
+        } else {
+          // Crear placeholder para estudiante sin nota
+          // Inicializar criterios con nota 0
+          const notasCriteriosIniciales: NotasCriterios[] = evaluacion.criterios.map(c => ({
+            criterio_numero: c.nro_criterio,
+            criterio_nombre: c.nombre,
+            ponderacion_maxima: c.ponderacion,
+            nota_obtenida: 0
+          }));
+
+          listaFinal.push({
+            id: "", // ID vacío indica que no existe en BD
+            evaluacion_id: evaluacionSeleccionada,
+            estudiante_id: estudianteId,
+            notas_criterios: notasCriteriosIniciales,
+            nota_definitiva: 0,
+            observacion: "",
+            estudiante,
+            // Campos requeridos por la interfaz NotasEvaluacion
+            estudiante_nombre: `${estudiante.nombres} ${estudiante.apellidos}`,
+            docente_id: user?.uid || "",
+          });
+        }
+      });
 
       // Ordenar por apellidos
-      notasData.sort((a, b) => {
+      listaFinal.sort((a, b) => {
         const apellidoA = a.estudiante?.apellidos || "";
         const apellidoB = b.estudiante?.apellidos || "";
         return apellidoA.localeCompare(apellidoB);
       });
 
-      setNotas(notasData);
-      setNotasFiltradas(notasData);
+      setNotas(listaFinal);
+      setNotasFiltradas(listaFinal);
     } catch (error) {
       console.error("Error al cargar notas:", error);
       showToast.error("Error al cargar las calificaciones");
@@ -191,6 +320,9 @@ export default function VerNotas() {
   const calcularEstadisticas = (): Estadisticas | null => {
     if (notasFiltradas.length === 0) return null;
 
+    // Solo considerar notas que tienen ID (ya guardadas) o que tienen nota > 0
+    // O tal vez considerar todas ya que el estudiante pertenece a la sección
+    // Vamos a considerar todas para reflejar la realidad del curso
     const notasDefinitivas = notasFiltradas.map((n) => n.nota_definitiva);
     const promedio = notasDefinitivas.reduce((sum, nota) => sum + nota, 0) / notasDefinitivas.length;
     const notaMaxima = Math.max(...notasDefinitivas);
@@ -225,11 +357,100 @@ export default function VerNotas() {
     }
   };
 
+  const handleEditGrade = (nota: NotaConEstudiante) => {
+    setNotaAEditar(nota);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveGrade = async (notaId: string, nuevasNotasCriterios: NotasCriterios[], motivo: string) => {
+    if (!user?.uid) return;
+
+    try {
+      // Buscar la nota actual en el state (puede ser una nota existente o un placeholder)
+      // Si notaId viene vacío, buscamos por estudiante_id en notaAEditar
+      const notaActual = notas.find(n => n.id === notaId) || notaAEditar;
+      
+      if (!notaActual) {
+        throw new Error("No se encontró la nota");
+      }
+
+      // Calcular la nueva nota definitiva
+      const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
+      if (!evaluacion) {
+        throw new Error("No se encontró la evaluación");
+      }
+
+      let nuevaNotaDefinitiva = 0;
+      evaluacion.criterios.forEach((criterio) => {
+        const notaCriterio = nuevasNotasCriterios.find(nc => nc.criterio_numero === criterio.nro_criterio);
+        const valor = notaCriterio?.nota_obtenida || 0;
+        const porcentaje = criterio.ponderacion / evaluacion.criterios.reduce((sum, c) => sum + c.ponderacion, 0);
+        nuevaNotaDefinitiva += valor * porcentaje;
+      });
+
+      // Si tiene ID, es actualización
+      if (notaId && notaId !== "") {
+        // Verificar si hubo cambios
+        if (nuevaNotaDefinitiva !== notaActual.nota_definitiva) {
+          // Crear entrada de historial
+          const nuevoCambio = {
+            fecha: Timestamp.now(),
+            nota_anterior: notaActual.nota_definitiva,
+            nota_nueva: nuevaNotaDefinitiva,
+            motivo: motivo,
+            usuario_id: user.uid,
+          };
+
+          // Obtener historial existente o crear uno nuevo
+          const historialActual = notaActual.historial_cambios || [];
+
+          // Actualizar en Firestore
+          await updateDoc(doc(db, "notas_evaluaciones", notaId), {
+            notas_criterios: nuevasNotasCriterios,
+            nota_definitiva: nuevaNotaDefinitiva,
+            historial_cambios: [...historialActual, nuevoCambio],
+            updatedAt: serverTimestamp(),
+            // Asegurar que updated_at también se actualice si se usa ese campo
+            updated_at: serverTimestamp(),
+          });
+
+          showToast.success("Calificación actualizada correctamente");
+        } else {
+          showToast.info("No se detectaron cambios en la nota definitiva");
+        }
+      } else {
+        // ES NUEVA NOTA
+        await addDoc(collection(db, "notas_evaluaciones"), {
+          evaluacion_id: evaluacionSeleccionada,
+          estudiante_id: notaActual.estudiante_id, // Usar ID del estudiante del placeholder
+          estudiante_nombre: `${notaActual.estudiante?.nombres} ${notaActual.estudiante?.apellidos}`,
+          docente_id: user.uid,
+          notas_criterios: nuevasNotasCriterios,
+          nota_definitiva: nuevaNotaDefinitiva,
+          observacion: "", // Opcional: permitir observación en el dialog
+          historial_cambios: [], // Inicialmente vacío
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        showToast.success("Calificación registrada correctamente");
+      }
+        
+      // Recargar las notas
+      await loadNotas();
+      setEditDialogOpen(false); // Cerrar diálogo asegúrate
+    } catch (error) {
+      console.error("Error al guardar calificación:", error);
+      showToast.error("Error al actualizar la calificación");
+      throw error;
+    }
+  };
+
   const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
   const estadisticas = calcularEstadisticas();
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <Link href="/app/dashboard-docente">
@@ -245,21 +466,38 @@ export default function VerNotas() {
         </div>
       </div>
 
-      {/* Selector de Evaluación */}
+      {/* Selector de Sección y Evaluación */}
       <Card>
         <CardHeader>
           <CardTitle>Seleccionar Evaluación</CardTitle>
           <CardDescription>
-            Elige la evaluación completada para ver las calificaciones
+            Primero elige la sección, luego la evaluación para ver las calificaciones
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <EvaluationSelector
-            evaluaciones={evaluaciones}
-            evaluacionSeleccionada={evaluacionSeleccionada}
-            onSelectEvaluacion={handleSelectEvaluacion}
-            isLoading={isLoadingEvaluaciones}
-          />
+        <CardContent className="space-y-4">
+          {/* Selector de Sección */}
+          <div className="max-w-md">
+            <SectionSelector
+              secciones={secciones}
+              seccionSeleccionada={seccionSeleccionada}
+              onSelect={setSeccionSeleccionada}
+              isLoading={isLoadingEvaluaciones}
+              open={openSectionCombobox}
+              setOpen={setOpenSectionCombobox}
+            />
+          </div>
+
+          {/* Selector de Evaluación - Solo se muestra si hay sección seleccionada */}
+          {seccionSeleccionada && (
+            <div>
+              <EvaluationSelector
+                evaluaciones={evaluacionesFiltradas}
+                evaluacionSeleccionada={evaluacionSeleccionada}
+                onSelectEvaluacion={handleSelectEvaluacion}
+                isLoading={isLoadingEvaluaciones}
+              />
+            </div>
+          )}
 
           {evaluacion && <EvaluationDetails evaluacion={evaluacion} />}
         </CardContent>
@@ -290,8 +528,8 @@ export default function VerNotas() {
                       />
                     </div>
                     <Button onClick={handleExportPDF} variant="outline" className="shrink-0">
-                      <Download className="h-4 w-4 mr-2" />
-                      Exportar PDF
+                      <FileText className="h-4 w-4 mr-2" />
+                      Ver Planilla
                     </Button>
                   </div>
                 </div>
@@ -306,7 +544,7 @@ export default function VerNotas() {
                     {searchTerm ? "No se encontraron resultados" : "No hay calificaciones registradas"}
                   </div>
                 ) : (
-                  <GradesTable notas={notasFiltradas} evaluacion={evaluacion} />
+                  <GradesTable notas={notasFiltradas} evaluacion={evaluacion} onEdit={handleEditGrade} />
                 )}
               </CardContent>
             </Card>
@@ -323,6 +561,15 @@ export default function VerNotas() {
           )}
         </>
       )}
+
+      {/* Dialog de Edición */}
+      <EditGradeDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        nota={notaAEditar}
+        evaluacion={evaluacion!}
+        onSave={handleSaveGrade}
+      />
     </div>
   );
 }
