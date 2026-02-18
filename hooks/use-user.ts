@@ -54,13 +54,13 @@ export const useUser = () => {
           console.log("Ruta actual:", pathName);
           console.log("pathName === '/auth':", pathName === "/auth");
           console.log("pathName.startsWith('/auth/'):", pathName.startsWith("/auth/"));
-          console.log("pathName.startsWith('/app/dashboard'):", pathName.startsWith("/app/dashboard"));
-          console.log("pathName.startsWith('/app/dashboard-docente'):", pathName.startsWith("/app/dashboard-docente"));
+          console.log("pathName.startsWith('/dashboard'):", pathName.startsWith("/dashboard"));
+          console.log("pathName.startsWith('/dashboard-docente'):", pathName.startsWith("/dashboard-docente"));
           console.log("======================");
           
           // Si está en auth, redirigir al dashboard correspondiente
           if (pathName === "/auth" || pathName.startsWith("/auth/")) {
-            const targetRoute = isDocente ? "/app/dashboard-docente" : "/app/dashboard";
+            const targetRoute = isDocente ? "/dashboard-docente" : "/dashboard";
             console.log("✅ Condición AUTH cumplida");
             console.log("→ Redirigiendo desde auth a:", targetRoute);
             route.replace(targetRoute);
@@ -68,20 +68,20 @@ export const useUser = () => {
           }
           
           // Si es docente e intenta acceder al dashboard principal
-          const esDashboardPrincipal = pathName.startsWith("/app/dashboard") && !pathName.startsWith("/app/dashboard-docente");
+          const esDashboardPrincipal = pathName.startsWith("/dashboard") && !pathName.startsWith("/dashboard-docente");
           console.log("¿Es dashboard principal?:", esDashboardPrincipal);
           console.log("¿Es docente?:", isDocente);
           
           if (isDocente && esDashboardPrincipal) {
             console.log("✅ REDIRIGIENDO DOCENTE DE DASHBOARD PRINCIPAL A DASHBOARD-DOCENTE");
-            route.replace("/app/dashboard-docente");
+            route.replace("/dashboard-docente");
             return;
           }
           
           // Si NO es docente e intenta acceder al dashboard de docentes
-          if (!isDocente && pathName.startsWith("/app/dashboard-docente")) {
+          if (!isDocente && pathName.startsWith("/dashboard-docente")) {
             console.log("✅ REDIRIGIENDO NO-DOCENTE DE DASHBOARD-DOCENTE A DASHBOARD PRINCIPAL");
-            route.replace("/app/dashboard");
+            route.replace("/dashboard");
             return;
           }
           
@@ -95,7 +95,7 @@ export const useUser = () => {
         setUser(undefined);
         setIsLoading(false);
         
-        const protectedRoutes = ["/app/dashboard", "/app/dashboard-docente"];
+        const protectedRoutes = ["/dashboard", "/dashboard-docente"];
         const isProtectedRoute = protectedRoutes.some(route => pathName.startsWith(route));
         
         if (isProtectedRoute) {

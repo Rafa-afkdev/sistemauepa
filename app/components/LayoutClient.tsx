@@ -1,8 +1,8 @@
 "use client";
-import React, { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import NavbarMain from "../components/NavbarMain";
 import { useUser } from "@/hooks/use-user";
+import { usePathname, useRouter } from "next/navigation";
+import React, { useEffect } from "react";
+import NavbarMain from "../components/NavbarMain";
 
 export default function LayoutClient({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useUser();
@@ -18,28 +18,35 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
 
     // Si hay usuario autenticado y está en ruta de auth, redirigir a dashboard
     if (user && isInAuthRoute) {
-      router.replace("/app/dashboard");
+      router.replace("/dashboard");
       return;
     }
 
     // Restricciones de rol para docentes
     if (user?.rol === "DOCENTE") {
       const allowedRoutes = [
-        "/app/dashboard",
-        "/app/dashboard/cargar-evaluaciones",
-        "/app/dashboard/ver-evaluaciones",
-        "/app/dashboard/asignar-notas",
-        "/app/dashboard/ver-notas",
+        "/dashboard",
+        "/dashboard/cargar-evaluaciones",
+        "/dashboard/ver-evaluaciones",
+        "/dashboard/asignar-notas",
+        "/dashboard/ver-notas",
       ];
-      const isAllowed = allowedRoutes.includes(pathName);
+      // Allow if it's in the specific allowed list OR if it's the teacher dashboard
+      const isAllowed = allowedRoutes.includes(pathName) || pathName.startsWith("/dashboard-docente");
+      
       if (!isAllowed) {
-        router.replace("/app/dashboard");
+        // If they are trying to access a restricted /dashboard route, redirect to their main dashboard
+        if (pathName.startsWith("/dashboard")) {
+             router.replace("/dashboard-docente");
+        } else {
+             router.replace("/dashboard");
+        }
         return;
       }
     }
   }, [user, isLoading, pathName, router]);
 
-  const isPublicPage = !!pathName && !pathName.startsWith("/app") && !pathName.startsWith("/auth");
+  const isPublicPage = !!pathName && !pathName.startsWith("/dashboard") && !pathName.startsWith("/dashboard-docente") && !pathName.startsWith("/auth");
 
   return (
     <>
