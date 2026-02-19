@@ -225,9 +225,9 @@ export default function SubirNotas() {
         });
       }
 
-      // Ordenar por apellidos
+      // Ordenar por cédula
       const estudiantesOrdenados = estudiantesData.sort((a, b) => 
-        a.apellidos.localeCompare(b.apellidos)
+        a.cedula - b.cedula
       );
 
       setEstudiantes(estudiantesOrdenados);
