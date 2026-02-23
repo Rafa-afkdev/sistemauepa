@@ -206,6 +206,67 @@ export const generarCorteNotasPDF = async ({
     currentY -= rowHeight;
   });
 
+  // ========== AREA FIRMAS Y VERSÍCULO (AL FINAL DE LA HOJA) ==========
+  const bottomY = 120; // Fijo en la parte baja de la página
+
+  const drawCenteredText = (text: string, xObj: number, yObj: number, font: any, size: number) => {
+    const textW = font.widthOfTextAtSize(text, size);
+    page.drawText(text, { x: xObj - textW / 2, y: yObj, size, font });
+  };
+
+  const center1 = width / 5;   // Movido más a la izquierda
+  const center2 = width / 2;
+  const center3 = (width / 5) * 4; // Movido más a la derecha
+
+  // Director
+  page.drawLine({ start: { x: center1 - 70, y: bottomY }, end: { x: center1 + 70, y: bottomY }, thickness: 1 });
+  drawCenteredText("Prof. Rony Brazón", center1, bottomY - 15, helveticaBold, 9);
+  drawCenteredText("Director de la Institución", center1, bottomY - 25, helveticaFont, 8);
+
+  // Sello
+  drawCenteredText("Sello de la Institución", center2, bottomY - 20, helveticaFont, 9);
+
+  // Coordinador
+  page.drawLine({ start: { x: center3 - 80, y: bottomY }, end: { x: center3 + 80, y: bottomY }, thickness: 1 });
+  drawCenteredText("Licda. Ana Caldea", center3, bottomY - 15, helveticaBold, 9);
+  drawCenteredText("Coordinación de Control", center3, bottomY - 25, helveticaFont, 8);
+  drawCenteredText("de Estudio y Evaluación", center3, bottomY - 35, helveticaFont, 8);
+
+  // Versículos Bíblicos para Estudiantes (Académico, Esfuerzo, Sabiduría)
+  const versiculos = [
+    "Pon en manos del Señor todas tus obras, y tus proyectos se cumplirán. (Proverbios 16:3)",
+    "Porque el Señor da la sabiduría; conocimiento y ciencia brotan de sus labios. (Proverbios 2:6)",
+    "Todo lo puedo en Cristo que me fortalece. (Filipenses 4:13)",
+    "Esfuérzate y sé valiente; no temas ni desmayes, porque el Señor tu Dios estará contigo. (Josué 1:9)",
+    "El corazón del entendido adquiere sabiduría; y el oído de los sabios busca la ciencia. (Proverbios 18:15)",
+    "Haz todo con excelencia, como si lo hicieras para Dios y no para los hombres. (Colosenses 3:23)",
+    "Y el joven Jesús crecía en sabiduría, en estatura y en gracia para con Dios y los hombres. (Lucas 2:52)",
+    "Que nadie te menosprecie por ser joven. Al contrario, que los creyentes vean en ti un ejemplo a seguir. (1 Timoteo 4:12)"
+  ];
+  const randomVersiculo = `"${versiculos[Math.floor(Math.random() * versiculos.length)]}"`;
+  
+  // Función para envolver el texto si excede el ancho de la página
+  const fontSizeVersiculo = 10;
+  const maxWidth = width - 80; // 40 de margen a cada lado
+  const words = randomVersiculo.split(" ");
+  let currentLine = "";
+  let baseLineY = bottomY - 65;
+
+  words.forEach((word) => {
+    const testLine = currentLine + word + " ";
+    const testWidth = helveticaFont.widthOfTextAtSize(testLine, fontSizeVersiculo);
+    if (testWidth > maxWidth && currentLine !== "") {
+      drawCenteredText(currentLine.trim(), width / 2, baseLineY, helveticaFont, fontSizeVersiculo);
+      currentLine = word + " ";
+      baseLineY -= 12; // Salto de línea
+    } else {
+      currentLine = testLine;
+    }
+  });
+  if (currentLine.trim() !== "") {
+    drawCenteredText(currentLine.trim(), width / 2, baseLineY, helveticaFont, fontSizeVersiculo);
+  }
+
   // Save PDF
   const pdfBytes = await pdfDoc.save();
   const blob = new Blob([pdfBytes as any], { type: "application/pdf" });

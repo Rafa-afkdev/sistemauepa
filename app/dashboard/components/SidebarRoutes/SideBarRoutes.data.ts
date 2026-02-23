@@ -94,8 +94,11 @@ export const DataAñoSidebar = [
         label: "Lapsos",
         href: "/dashboard/periodos-escolares/lapsos", 
     },
-
-    
+    {
+        icon: CalendarClock,
+        label: "Cortes",
+        href: "/dashboard/periodos-escolares/cortes", 
+    }
 ]
 
 export const DataIngresarNotas = [

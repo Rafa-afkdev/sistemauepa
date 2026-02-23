@@ -190,7 +190,7 @@ export default function CorteNotasPage() {
                 const snapEst = await getDocs(qEst);
                 snapEst.docs.forEach(d => estudiantesLoaded.push({ id: d.id, ...d.data() } as Estudiantes));
             }
-            setEstudiantes(estudiantesLoaded.sort((a, b) => a.apellidos.localeCompare(b.apellidos)));
+            setEstudiantes(estudiantesLoaded.sort((a, b) => a.cedula - b.cedula));
         } else {
             // Fallback: Try fetching from estudiantes_inscritos if array is empty (legacy compatibility)
             console.warn("Section has no estudiantes_ids array, trying estudiantes_inscritos...");
@@ -208,7 +208,7 @@ export default function CorteNotasPage() {
                     const snapEst = await getDocs(qEst);
                     snapEst.docs.forEach(d => estudiantesLoaded.push({ id: d.id, ...d.data() } as Estudiantes));
                 }
-                setEstudiantes(estudiantesLoaded.sort((a, b) => a.apellidos.localeCompare(b.apellidos)));
+                setEstudiantes(estudiantesLoaded.sort((a, b) => a.cedula - b.cedula));
             } else {
                 setEstudiantes([]);
             }
