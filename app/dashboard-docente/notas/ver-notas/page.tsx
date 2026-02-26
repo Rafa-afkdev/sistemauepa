@@ -62,41 +62,43 @@ export default function VerNotas() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [notaAEditar, setNotaAEditar] = useState<NotaConEstudiante | null>(null);
   
-  const [canEditGrades, setCanEditGrades] = useState(false);
-  const [activeCorte, setActiveCorte] = useState<CortesEscolares | null>(null);
+  const [todos_cortes, setTodosCortes] = useState<CortesEscolares[]>([]);
 
-  // Cargar corte activo para determinar si se pueden editar notas
+  // Cargar TODOS los cortes para validar edición según fecha de la evaluación
   useEffect(() => {
-    const checkActiveCorte = async () => {
+    const loadCortes = async () => {
       try {
-        const q = query(collection(db, "cortes"), where("status", "==", "ACTIVO"));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          const corteData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as CortesEscolares;
-          setActiveCorte(corteData);
-
-          // Verificar si la fecha actual está dentro del rango
-          const hoy = new Date();
-          hoy.setHours(0,0,0,0);
-          const inicio = new Date(corteData.fecha_inicio + "T00:00:00");
-          const fin = new Date(corteData.fecha_fin + "T23:59:59");
-
-          if (hoy >= inicio && hoy <= fin) {
-            setCanEditGrades(true);
-          } else {
-            setCanEditGrades(false);
-          }
-        } else {
-          setActiveCorte(null);
-          setCanEditGrades(false);
-        }
+        const snapshot = await getDocs(collection(db, "cortes"));
+        const cortes = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CortesEscolares));
+        setTodosCortes(cortes);
       } catch (error) {
-        console.error("Error al buscar corte activo:", error);
-        setCanEditGrades(false);
+        console.error("Error al cargar cortes:", error);
       }
     };
-    checkActiveCorte();
+    loadCortes();
   }, []);
+
+  // Helper para calcular si se puede editar (se usa debajo, después de que evaluacion está declarada)
+  const computeCanEdit = (evalFecha: string | undefined) => {
+    if (!evalFecha || todos_cortes.length === 0) return false;
+
+    const fechaEval = new Date(evalFecha + "T00:00:00");
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const corteCoincide = todos_cortes.find(c => {
+      const inicio = new Date(c.fecha_inicio + "T00:00:00");
+      const fin   = new Date(c.fecha_fin   + "T23:59:59");
+      return fechaEval >= inicio && fechaEval <= fin;
+    });
+
+    if (!corteCoincide) return false;
+    if (corteCoincide.status !== "ACTIVO") return false;
+
+    const inicioActivo = new Date(corteCoincide.fecha_inicio + "T00:00:00");
+    const finActivo   = new Date(corteCoincide.fecha_fin   + "T23:59:59");
+    return hoy >= inicioActivo && hoy <= finActivo;
+  };
 
   // Cargar evaluaciones completadas del docente
   useEffect(() => {
@@ -484,6 +486,7 @@ export default function VerNotas() {
   };
 
   const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
+  const canEditGrades = computeCanEdit(evaluacion?.fecha);
   const estadisticas = calcularEstadisticas();
 
   return (
