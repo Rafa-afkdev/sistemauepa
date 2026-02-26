@@ -79,6 +79,7 @@ export function CrearEvaluacionDialog({
   ]);
 
   const isEditing = !!evaluacionToEdit;
+  const isEvaluada = evaluacionToEdit?.status === "EVALUADA";
 
   // Efecto para abrir el modal si hay una evaluación para editar
   useEffect(() => {
@@ -279,20 +280,20 @@ export function CrearEvaluacionDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!nombreEvaluacion || !tipoEvaluacion || !materiaId || seccionesIds.length === 0 || !fecha) {
+    if (!nombreEvaluacion || (!isEvaluada && (!tipoEvaluacion || !materiaId || seccionesIds.length === 0 || !fecha))) {
       showToast.error("Por favor completa todos los campos requeridos");
       return;
     }
 
-    if (porcentaje <= 0 || porcentaje > 100) {
+    if (!isEvaluada && (porcentaje <= 0 || porcentaje > 100)) {
       showToast.error("El porcentaje debe estar entre 1 y 100");
       return;
     }
 
-    // Validar criterios solo si tiene criterios personalizados
+    // Validar criterios solo si tiene criterios personalizados y no está evaluada
     let criteriosFinales = criterios;
 
-    if (tieneCriterios) {
+    if (!isEvaluada && tieneCriterios) {
       const criteriosValidos = criterios.every(c => c.nombre && c.ponderacion > 0);
       if (!criteriosValidos) {
         showToast.error("Todos los criterios deben tener nombre y ponderación");
@@ -304,7 +305,7 @@ export function CrearEvaluacionDialog({
         showToast.error(`La ponderación total debe ser 20 puntos (actual: ${totalPonderacion})`);
         return;
       }
-    } else {
+    } else if (!isEvaluada) {
       // Si no tiene criterios, usar un criterio por defecto de 20 puntos
       criteriosFinales = [{ nro_criterio: "1", nombre: "Evaluación General", ponderacion: 20 }];
     }
@@ -314,6 +315,15 @@ export function CrearEvaluacionDialog({
     try {
       // MODO EDICIÓN: Solo actualizar la evaluación existente (una sola sección)
       if (isEditing && evaluacionToEdit?.id) {
+
+        // Si la evaluación ya fue evaluada, solo se puede cambiar el nombre
+        if (isEvaluada) {
+          await updateDocument(`evaluaciones/${evaluacionToEdit.id}`, {
+            nombre_evaluacion: nombreEvaluacion,
+            updatedAt: serverTimestamp(),
+          });
+          showToast.success("Nombre de la evaluación actualizado exitosamente");
+        } else {
         const criteriosFinales = tieneCriterios
           ? criterios
           : [{ nro_criterio: "1", nombre: "Criterio Único", ponderacion: 20 }];
@@ -321,7 +331,7 @@ export function CrearEvaluacionDialog({
         // Validar duplicidad si cambió la sección, materia o fecha
         const cambioSeccion = seccionesIds[0] !== evaluacionToEdit.seccion_id;
         const cambioMateria = materiaId !== evaluacionToEdit.materia_id;
-        const cambioFecha = format(fecha, "yyyy-MM-dd") !== evaluacionToEdit.fecha;
+        const cambioFecha = format(fecha!, "yyyy-MM-dd") !== evaluacionToEdit.fecha;
 
         if (cambioSeccion || cambioMateria || cambioFecha) {
           const evaluacionesRef = collection(db, "evaluaciones");
@@ -329,7 +339,7 @@ export function CrearEvaluacionDialog({
             evaluacionesRef,
             where("seccion_id", "==", seccionesIds[0]),
             where("materia_id", "==", materiaId),
-            where("fecha", "==", format(fecha, "yyyy-MM-dd"))
+            where("fecha", "==", format(fecha!, "yyyy-MM-dd"))
           );
 
           const duplicadosSnapshot = await getDocs(qDuplicados);
@@ -359,7 +369,7 @@ export function CrearEvaluacionDialog({
           periodo_escolar_id: periodoEscolarId,
           criterios: criteriosFinales,
           porcentaje: porcentaje,
-          fecha: format(fecha, "yyyy-MM-dd"),
+          fecha: format(fecha!, "yyyy-MM-dd"),
           status: "POR EVALUAR",
           updatedAt: serverTimestamp(),
         };
@@ -390,6 +400,7 @@ export function CrearEvaluacionDialog({
 
         await updateDocument(`evaluaciones/${evaluacionToEdit.id}`, evaluacionData);
         showToast.success("Evaluación actualizada exitosamente");
+        } // fin else !isEvaluada
       } 
       // MODO CREACIÓN: Crear una evaluación por cada sección seleccionada
       else {
@@ -414,7 +425,7 @@ export function CrearEvaluacionDialog({
             evaluacionesRef,
             where("seccion_id", "==", seccionId),
             where("materia_id", "==", materiaId),
-            where("fecha", "==", format(fecha, "yyyy-MM-dd"))
+            where("fecha", "==", format(fecha!, "yyyy-MM-dd"))
           );
 
           const duplicadosSnapshot = await getDocs(qDuplicados);
@@ -445,7 +456,7 @@ export function CrearEvaluacionDialog({
             criterios: criteriosFinales,
             nota_definitiva: 20,
             porcentaje: porcentaje,
-            fecha: format(fecha, "yyyy-MM-dd"),
+            fecha: format(fecha!, "yyyy-MM-dd"),
             status: "POR EVALUAR",
             createdAt: serverTimestamp(),
           };
@@ -545,9 +556,13 @@ export function CrearEvaluacionDialog({
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Editar Evaluación" : "Crear Nueva Evaluación"}</DialogTitle>
+          <DialogTitle>{isEvaluada ? "Editar Nombre de Evaluación" : isEditing ? "Editar Evaluación" : "Crear Nueva Evaluación"}</DialogTitle>
           <DialogDescription>
-            {isEditing ? "Modifica los datos de la evaluación" : "Programa una nueva evaluación para tus estudiantes"}
+            {isEvaluada
+              ? "Esta evaluación ya fue calificada. Solo puedes modificar el nombre."
+              : isEditing
+              ? "Modifica los datos de la evaluación"
+              : "Programa una nueva evaluación para tus estudiantes"}
           </DialogDescription>
         </DialogHeader>
 
@@ -567,6 +582,7 @@ export function CrearEvaluacionDialog({
           </div>
 
           {/* Tipo y Lapso */}
+          {!isEvaluada && (
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="tipoEvaluacion">
@@ -615,8 +631,10 @@ export function CrearEvaluacionDialog({
               </Select>
             </div>
           </div>
+          )}
 
           {/* Materia y Sección */}
+          {!isEvaluada && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="materiaId">
@@ -754,8 +772,10 @@ export function CrearEvaluacionDialog({
               )}
             </div>
           </div>
+          )}
 
           {/* Fecha */}
+          {!isEvaluada && (
           <div className="space-y-2">
             <Label>
               Fecha <span className="text-red-500">*</span>
@@ -808,8 +828,10 @@ export function CrearEvaluacionDialog({
               </PopoverContent>
             </Popover>
           </div>
+          )}
 
           {/* Porcentaje de la Evaluación */}
+          {!isEvaluada && (
           <div className="space-y-2">
             <Label htmlFor="porcentaje">
               Porcentaje de la Evaluación <span className="text-red-500">*</span>
@@ -833,8 +855,10 @@ export function CrearEvaluacionDialog({
               Indica el porcentaje que representa esta evaluación en el lapso (1-100%)
             </p>
           </div>
+          )}
 
           {/* Criterios de Evaluación */}
+          {!isEvaluada && (
           <div className="space-y-3">
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -925,6 +949,7 @@ export function CrearEvaluacionDialog({
               </>
             )}
           </div>
+          )}
 
           <DialogFooter>
             <Button

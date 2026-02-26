@@ -1,13 +1,11 @@
 "use client";
 
-import React from "react";
-import { DataAñoSidebar, DataDocenteSidebar, DataEstudiantesSidebar, DataEvaluacionesSidebar, DataIngresarNotas, DataMateriasSidebar, DataNotasSidebar, DataSeccionesSidebar } from "./SideBarRoutes.data";
-import SidebarItem from "../SidebarItem/SidebarItem";
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { Users, BookOpen, Calendar, UsersRound, ClipboardEdit, FileText, ClipboardList } from "lucide-react";
-import { motion } from "framer-motion";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useUser } from "@/hooks/use-user";
-import { Separator } from "@/components/ui/separator";
+import { motion } from "framer-motion";
+import { BookOpen, Calendar, ClipboardEdit, ClipboardList, FileText, Users, UsersRound } from "lucide-react";
+import SidebarItem from "../SidebarItem/SidebarItem";
+import { DataAñoSidebar, DataDocenteSidebar, DataEstudiantesSidebar, DataEvaluacionesAdminSidebar, DataEvaluacionesSidebar, DataIngresarNotas, DataMateriasSidebar, DataNotasSidebar, DataSeccionesSidebar } from "./SideBarRoutes.data";
 
 export function SidebarRoutes() {
   const { user } = useUser();
@@ -194,6 +192,31 @@ export function SidebarRoutes() {
                       key={item.label}
                       item={item}
                       className="px-3 py-2 text-sm rounded-md hover:bg-orange-50 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                    />
+                  ))}
+                </AccordionContent>
+              </AccordionItem>
+
+              <div className="h-px w-full bg-slate-200 dark:bg-slate-700 my-2" />
+
+              <AccordionItem value="evaluaciones-admin" className="group">
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <AccordionTrigger className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all hover:no-underline hover:bg-green-50 dark:hover:bg-slate-700 [&[data-state=open]]:bg-green-100 [&[data-state=open]]:dark:bg-slate-600">
+                    <ClipboardList className="w-5 h-5 text-green-600 dark:text-green-400 group-hover:text-green-700 group-data-[state=open]:text-green-700 dark:group-data-[state=open]:text-green-300" />
+                    <span className="font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">
+                      Evaluaciones
+                    </span>
+                  </AccordionTrigger>
+                </motion.div>
+                <AccordionContent className="pl-3 pt-2 space-y-2">
+                  {DataEvaluacionesAdminSidebar.map((item) => (
+                    <SidebarItem
+                      key={item.label}
+                      item={item}
+                      className="px-3 py-2 text-sm rounded-md hover:bg-green-50 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                     />
                   ))}
                 </AccordionContent>

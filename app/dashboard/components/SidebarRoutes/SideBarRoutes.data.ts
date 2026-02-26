@@ -130,7 +130,11 @@ export const DataNotasSidebar = [
         label: "Corte de Notas",
         href: "/dashboard/notas/corte-notas",
     },
-    
+    {
+        icon: FileText,
+        label: "Ver Notas",
+        href: "/dashboard/ver-notas",
+    },
 ]
 
 export const DataEvaluacionesSidebar = [
@@ -144,4 +148,12 @@ export const DataEvaluacionesSidebar = [
         label: "Ver Mis Evaluaciones",
         href: "/dashboard/ver-evaluaciones",
     }
+]
+
+export const DataEvaluacionesAdminSidebar = [
+    {
+        icon: FileText,
+        label: "Ver / Editar Evaluaciones",
+        href: "/dashboard/ver-evaluaciones",
+    },
 ]

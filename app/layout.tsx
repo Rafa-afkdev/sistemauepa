@@ -1,4 +1,4 @@
-  import type { Metadata } from "next";
+  import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import React from "react";
 import LayoutClient from "./components/LayoutClient";
@@ -72,12 +72,6 @@ import "./globals.css";
       icon: "/favicon.ico",
       apple: "/apple-touch-icon.png",
     },
-    themeColor: "#1e3a8a",
-    viewport: {
-      width: "device-width",
-      initialScale: 1,
-      maximumScale: 5,
-    },
     robots: {
       index: true,
       follow: true,
@@ -89,6 +83,13 @@ import "./globals.css";
         'max-snippet': -1,
       },
     },
+  };
+
+  export const viewport: Viewport = {
+    themeColor: "#1e3a8a",
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 5,
   };
 
   export default function RootLayout({

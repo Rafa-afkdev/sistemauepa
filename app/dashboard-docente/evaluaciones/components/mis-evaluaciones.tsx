@@ -90,7 +90,7 @@ export function MisEvaluaciones() {
   const [periodosEscolares, setPeriodosEscolares] = useState<PeriodosEscolares[]>([]);
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState<string>("");
   const [lapsos, setLapsos] = useState<LapsosEscolares[]>([]);
-  const [lapsoSeleccionado, setLapsoSeleccionado] = useState<string>("");
+  const [lapsoSeleccionado, setLapsoSeleccionado] = useState<string>("todos");
   const [materiasDocente, setMateriasDocente] = useState<MateriaConNombre[]>([]);
   const [asignacionesDocente, setAsignacionesDocente] = useState<AsignacionDocenteMateria[]>([]);
   const [materiaFiltro, setMateriaFiltro] = useState<string>("todas");
@@ -100,6 +100,7 @@ export function MisEvaluaciones() {
   const [openMateriaCombo, setOpenMateriaCombo] = useState(false);
   const [openSeccionCombo, setOpenSeccionCombo] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFiltro, setStatusFiltro] = useState<string>("todas");
 
   const [evaluacionEditar, setEvaluacionEditar] = useState<EvaluacionConDetalles | null>(null);
   const [evaluacionToDelete, setEvaluacionToDelete] = useState<EvaluacionConDetalles | null>(null);
@@ -116,7 +117,7 @@ export function MisEvaluaciones() {
       loadLapsosByPeriodo(periodoSeleccionado);
     } else {
       setLapsos([]);
-      setLapsoSeleccionado("");
+      setLapsoSeleccionado("todos");
     }
   }, [periodoSeleccionado]);
 
@@ -190,17 +191,11 @@ export function MisEvaluaciones() {
       })) as LapsosEscolares[];
 
       setLapsos(lapsosData);
-
-      // Seleccionar el primer lapso por defecto
-      if (lapsosData.length > 0 && lapsosData[0].id) {
-        setLapsoSeleccionado(lapsosData[0].id);
-      } else {
-        setLapsoSeleccionado("");
-      }
+      // No auto-seleccionamos el lapso: dejamos "todos" para que el docente vea todas sus evaluaciones por defecto
     } catch (error) {
       console.error("Error al cargar lapsos:", error);
       setLapsos([]);
-      setLapsoSeleccionado("");
+      setLapsoSeleccionado("todos");
     }
   };
 
@@ -378,7 +373,10 @@ export function MisEvaluaciones() {
         seccion_nombre: evaluacion.seccion_id ? seccionesMap.get(evaluacion.seccion_id) ?? undefined : undefined
       }));
 
-      console.log("Evaluaciones cargadas:", evaluacionesConDetalles);
+      console.log(`[MisEvaluaciones] Total cargadas desde Firebase: ${evaluacionesConDetalles.length}`);
+      const evaluadas = evaluacionesConDetalles.filter(e => e.status === "EVALUADA");
+      console.log(`[MisEvaluaciones] Con status EVALUADA: ${evaluadas.length}`);
+      evaluadas.forEach(e => console.log(`  - "${e.nombre_evaluacion}" | lapsop_id: "${e.lapsop_id}" | seccion: ${e.seccion_id} | materia: ${e.materia_id}`));
       setEvaluaciones(evaluacionesConDetalles);
     } catch (error) {
       console.error("Error al cargar evaluaciones:", error);
@@ -410,9 +408,10 @@ export function MisEvaluaciones() {
 
   // Filtrar evaluaciones
   const evaluacionesFiltradas = evaluaciones.filter(
-    (ev) => ev.lapsop_id === lapsoSeleccionado &&
+    (ev) => (lapsoSeleccionado === "todos" || !ev.lapsop_id || ev.lapsop_id === lapsoSeleccionado) &&
       (materiaFiltro === "todas" || ev.materia_id === materiaFiltro) &&
       (seccionFiltro === "todas" || ev.seccion_id === seccionFiltro) &&
+      (statusFiltro === "todas" || ev.status === statusFiltro) &&
       (searchTerm === "" || ev.nombre_evaluacion.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -451,7 +450,7 @@ export function MisEvaluaciones() {
 
   // Obtener nombres para mostrar en estadísticas
   const periodoActualNombre = periodosEscolares.find(p => p.id === periodoSeleccionado)?.periodo || '';
-  const lapsoActualNombre = lapsos.find(l => l.id === lapsoSeleccionado)?.lapso || 'Seleccione un lapso';
+  const lapsoActualNombre = lapsos.find(l => l.id === lapsoSeleccionado)?.lapso || 'Todos los lapsos';
 
   return (
     <div className="space-y-6">
@@ -551,7 +550,7 @@ export function MisEvaluaciones() {
             />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             {/* Periodo Escolar */}
             <div>
               <label className="text-sm font-medium mb-2 block">Periodo Escolar</label>
@@ -579,12 +578,12 @@ export function MisEvaluaciones() {
               <Select
                 value={lapsoSeleccionado}
                 onValueChange={setLapsoSeleccionado}
-                disabled={lapsos.length === 0}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={lapsos.length === 0 ? "Sin lapsos disponibles" : "Seleccione un lapso"} />
+                  <SelectValue placeholder="Todos los lapsos" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="todos">Todos los lapsos</SelectItem>
                   {lapsos.map((lapso) => (
                     <SelectItem key={lapso.id} value={lapso.id || ""}>
                       {lapso.lapso}
@@ -721,6 +720,21 @@ export function MisEvaluaciones() {
                 </PopoverContent>
               </Popover>
             </div>
+
+            {/* Estado */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Estado</label>
+              <Select value={statusFiltro} onValueChange={setStatusFiltro}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas</SelectItem>
+                  <SelectItem value="POR EVALUAR">Por Evaluar</SelectItem>
+                  <SelectItem value="EVALUADA">Evaluadas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -777,6 +791,7 @@ export function MisEvaluaciones() {
                       variant="outline"
                       size="sm"
                       onClick={() => setEvaluacionEditar(evaluacion)}
+                      title={evaluacion.status === "EVALUADA" ? "Solo puedes editar el nombre de esta evaluación" : "Editar evaluación"}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -785,6 +800,8 @@ export function MisEvaluaciones() {
                       size="sm"
                       className="text-red-600 hover:text-red-700"
                       onClick={() => setEvaluacionToDelete(evaluacion)}
+                      disabled={evaluacion.status === "EVALUADA"}
+                      title={evaluacion.status === "EVALUADA" ? "Esta evaluación ya fue evaluada y no puede eliminarse" : undefined}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

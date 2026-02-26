@@ -271,8 +271,20 @@ export const generarCorteNotasPDF = async ({
   const pdfBytes = await pdfDoc.save();
   const blob = new Blob([pdfBytes as any], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
-  window.open(url, "_blank");
-  
+
+  // Nombre del archivo: corte_notas_APELLIDOS_NOMBRES_DD-MM-YYYY.pdf
+  const fechaArchivo = format(new Date(), "dd-MM-yyyy");
+  const apellidos = estudiante.apellidos.replace(/\s+/g, "_").toUpperCase();
+  const nombres = estudiante.nombres.replace(/\s+/g, "_").toUpperCase();
+  const nombreArchivo = `corte_notas_${apellidos}_${nombres}_${fechaArchivo}.pdf`;
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nombreArchivo;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
   // Cleanup
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
