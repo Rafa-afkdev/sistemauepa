@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser } from "@/hooks/use-user";
-import { CortesEscolares } from "@/interfaces/cortes.interface";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
 import { Evaluaciones } from "@/interfaces/evaluaciones.interface";
 import { LapsosEscolares } from "@/interfaces/lapsos.interface";
@@ -73,45 +72,11 @@ export default function VerNotas() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [notaAEditar, setNotaAEditar] = useState<NotaConEstudiante | null>(null);
   
-  const [todos_cortes, setTodosCortes] = useState<CortesEscolares[]>([]);
+  // Admin siempre puede editar, sin restriccion de corte
+  const canEditGrades = true;
 
   const [openSectionCombobox, setOpenSectionCombobox] = useState(false);
 
-  // Cargar TODOS los cortes para validar edición según fecha de la evaluación
-  useEffect(() => {
-    const loadCortes = async () => {
-      try {
-        const snapshot = await getDocs(collection(db, "cortes"));
-        const cortes = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CortesEscolares));
-        setTodosCortes(cortes);
-      } catch (error) {
-        console.error("Error al cargar cortes:", error);
-      }
-    };
-    loadCortes();
-  }, []);
-
-  // Helper: ¿puede editar la nota de esta evaluación?
-  // Bloquea si el corte que cubre la fecha está CERRADO/BLOQUEADO.
-  const computeCanEdit = (evalFecha: string | undefined) => {
-    if (!evalFecha || todos_cortes.length === 0) return false;
-    const fechaEval = new Date(evalFecha + "T00:00:00");
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-
-    const corteCoincide = todos_cortes.find(c => {
-      const inicio = new Date(c.fecha_inicio + "T00:00:00");
-      const fin   = new Date(c.fecha_fin   + "T23:59:59");
-      return fechaEval >= inicio && fechaEval <= fin;
-    });
-
-    if (!corteCoincide) return false;
-    if (corteCoincide.status !== "ACTIVO") return false;
-
-    const inicioActivo = new Date(corteCoincide.fecha_inicio + "T00:00:00");
-    const finActivo   = new Date(corteCoincide.fecha_fin   + "T23:59:59");
-    return hoy >= inicioActivo && hoy <= finActivo;
-  };
 
   // 0. Cargar periodos y el activo por defecto
   useEffect(() => {
@@ -540,7 +505,6 @@ export default function VerNotas() {
 
   const evaluacionesFiltradasPorSeccion = evaluaciones.filter(e => e.seccion_id === seccionSeleccionada);
   const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
-  const canEditGrades = computeCanEdit(evaluacion?.fecha);
   const estadisticas = calcularEstadisticas();
 
   return (

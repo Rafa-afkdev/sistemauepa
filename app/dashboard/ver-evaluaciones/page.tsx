@@ -2,8 +2,11 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser } from "@/hooks/use-user";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
@@ -11,26 +14,28 @@ import { Evaluaciones } from "@/interfaces/evaluaciones.interface";
 import { LapsosEscolares } from "@/interfaces/lapsos.interface";
 import { NotasCriterios, NotasEvaluacion } from "@/interfaces/notas-evaluaciones.interface";
 import { db } from "@/lib/data/firebase";
+import { EmailAuthProvider, getAuth, reauthenticateWithCredential } from "firebase/auth";
 import {
-    addDoc,
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    orderBy,
-    query,
-    serverTimestamp,
-    Timestamp,
-    updateDoc,
-    where,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+  Timestamp,
+  updateDoc,
+  where
 } from "firebase/firestore";
-import { ChevronLeft, FileText, Loader2, Search } from "lucide-react";
+import { Check, ChevronLeft, ChevronsUpDown, Clock, Edit, FileText, Loader2, Lock as LockIcon, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { showToast } from "nextjs-toast-notify";
 import { useEffect, useState } from "react";
+import { CrearEvaluacionDialog } from "../../dashboard-docente/evaluaciones/components/crear-evaluacion-dialog";
 import { EditGradeDialog } from "../ver-notas/components/EditGradeDialog";
 import { EvaluationDetails } from "../ver-notas/components/EvaluationDetails";
-import { EvaluationSelector } from "../ver-notas/components/EvaluationSelector";
 import { GradesStatistics } from "../ver-notas/components/GradesStatistics";
 import { GradesTable } from "../ver-notas/components/GradesTable";
 import { SectionSelector } from "../ver-notas/components/SectionSelector";
@@ -85,6 +90,18 @@ export default function VerEvaluacionesAdmin() {
   const [notaAEditar, setNotaAEditar] = useState<NotaConEstudiante | null>(null);
 
   const [openSectionCombobox, setOpenSectionCombobox] = useState(false);
+  const [materiaFiltro, setMateriaFiltro] = useState<string>("");
+  const [openMateriaCombobox, setOpenMateriaCombobox] = useState(false);
+  const [statusFiltro, setStatusFiltro] = useState<string>("");
+
+  // Delete evaluation states
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [evaluacionAEliminar, setEvaluacionAEliminar] = useState<EvaluacionConDetalles | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Edit evaluation states
+  const [evaluacionAEditar, setEvaluacionAEditar] = useState<EvaluacionConDetalles | null>(null);
 
   // Admin siempre puede editar
   const canEditGrades = true;
@@ -171,14 +188,10 @@ export default function VerEvaluacionesAdmin() {
       const q = query(evaluacionesRef, where("periodo_escolar_id", "==", periodoId));
       const snapshot = await getDocs(q);
 
-      // Traer solo EVALUADA que pertenezcan al LAPSO seleccionado
+      // Traer todas las evaluaciones del lapso (EVALUADA y POR EVALUAR)
       const rawEvaluaciones = snapshot.docs
         .map((d) => ({ id: d.id, ...d.data() } as EvaluacionConDetalles))
-        .filter((data) => {
-          const coincideLapso = data.lapsop_id === lapsoSeleccionado;
-          const coincideStatus = data.status === "EVALUADA";
-          return coincideLapso && coincideStatus;
-        });
+        .filter((data) => data.lapsop_id === lapsoSeleccionado);
 
       const evaluacionesData = await Promise.all(
         rawEvaluaciones.map(async (data) => {
@@ -406,33 +419,84 @@ export default function VerEvaluacionesAdmin() {
     }
   };
 
+  // Eliminar evaluación + todas sus notas (requiere re-autenticación del usuario)
+  const handleDeleteEvaluacion = async () => {
+    if (!evaluacionAEliminar?.id || !user?.email || !deletePassword) return;
+    setIsDeleting(true);
+    try {
+      // 1. Re-autenticar con la contraseña del usuario actual
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error("No hay sesión activa");
+      const credential = EmailAuthProvider.credential(user.email, deletePassword);
+      await reauthenticateWithCredential(currentUser, credential);
+
+      // 2. Eliminar TODAS las notas de esta evaluación (una a una, esperando cada delete)
+      const notasQuery = query(
+        collection(db, "notas_evaluaciones"),
+        where("evaluacion_id", "==", evaluacionAEliminar.id)
+      );
+      const notasSnapshot = await getDocs(notasQuery);
+      for (const notaDoc of notasSnapshot.docs) {
+        await deleteDoc(doc(db, "notas_evaluaciones", notaDoc.id));
+      }
+
+      // 3. Eliminar el documento de la evaluación
+      await deleteDoc(doc(db, "evaluaciones", evaluacionAEliminar.id));
+
+      // 4. Actualizar estado local
+      setEvaluaciones(prev => prev.filter(e => e.id !== evaluacionAEliminar.id));
+      if (evaluacionSeleccionada === evaluacionAEliminar.id) {
+        setEvaluacionSeleccionada("");
+        setNotas([]);
+        setNotasFiltradas([]);
+      }
+      showToast.success(
+        `Evaluación "${evaluacionAEliminar.nombre_evaluacion}" eliminada junto con ${notasSnapshot.docs.length} nota(s).`
+      );
+      setDeleteDialogOpen(false);
+      setEvaluacionAEliminar(null);
+      setDeletePassword("");
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "";
+      if (msg.includes("auth/wrong-password") || msg.includes("auth/invalid-credential")) {
+        showToast.error("Contraseña incorrecta. Verifica e intenta de nuevo.");
+      } else if (msg.includes("auth/too-many-requests")) {
+        showToast.error("Demasiados intentos fallidos. Intenta más tarde.");
+      } else {
+        showToast.error("Error al eliminar: " + msg);
+        console.error(error);
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+
+
+
+
   const handleEditGrade = (nota: NotaConEstudiante) => {
     setNotaAEditar(nota);
     setEditDialogOpen(true);
   };
 
-  const handleSaveGrade = async (
-    notaId: string,
-    nuevasNotasCriterios: NotasCriterios[],
-    motivo: string
-  ) => {
+  const handleSaveGrade = async (notaId: string, nuevasNotasCriterios: NotasCriterios[], motivo: string) => {
     if (!user?.uid) return;
 
     try {
-      const notaActual = notas.find((n) => n.id === notaId) || notaAEditar;
+      const notaActual = notas.find(n => n.id === notaId) || notaAEditar;
       if (!notaActual) throw new Error("No se encontró la nota");
 
       const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
       if (!evaluacion) throw new Error("No se encontró la evaluación");
 
-      const totalPonderacion = evaluacion.criterios.reduce((sum, c) => sum + c.ponderacion, 0);
       let nuevaNotaDefinitiva = 0;
       evaluacion.criterios.forEach((criterio) => {
-        const notaCriterio = nuevasNotasCriterios.find(
-          (nc) => nc.criterio_numero === criterio.nro_criterio
-        );
+        const notaCriterio = nuevasNotasCriterios.find(nc => nc.criterio_numero === criterio.nro_criterio);
         const valor = notaCriterio?.nota_obtenida || 0;
-        nuevaNotaDefinitiva += valor * (criterio.ponderacion / totalPonderacion);
+        const porcentaje = criterio.ponderacion / evaluacion.criterios.reduce((sum, c) => sum + c.ponderacion, 0);
+        nuevaNotaDefinitiva += valor * porcentaje;
       });
 
       if (notaId && notaId !== "") {
@@ -441,7 +505,7 @@ export default function VerEvaluacionesAdmin() {
             fecha: Timestamp.now(),
             nota_anterior: notaActual.nota_definitiva,
             nota_nueva: nuevaNotaDefinitiva,
-            motivo,
+            motivo: motivo,
             usuario_id: user.uid,
           };
           const historialActual = notaActual.historial_cambios || [];
@@ -472,7 +536,7 @@ export default function VerEvaluacionesAdmin() {
         });
         showToast.success("Calificación registrada correctamente");
       }
-
+        
       await loadNotas();
       setEditDialogOpen(false);
     } catch (error) {
@@ -485,6 +549,21 @@ export default function VerEvaluacionesAdmin() {
   const evaluacionesFiltradasPorSeccion = evaluaciones.filter(
     (e) => e.seccion_id === seccionSeleccionada
   );
+
+  // Materias únicas de las evaluaciones de la sección
+  const materiasDisponibles = Array.from(
+    new Map(
+      evaluacionesFiltradasPorSeccion
+        .filter((e) => e.materia_id && e.materia_nombre)
+        .map((e) => [e.materia_id!, { id: e.materia_id!, nombre: e.materia_nombre! }])
+    ).values()
+  ).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  // Aplicar filtros: materia + status
+  const evaluacionesAMostrar = evaluacionesFiltradasPorSeccion
+    .filter((e) => !materiaFiltro || e.materia_id === materiaFiltro)
+    .filter((e) => !statusFiltro || e.status === statusFiltro);
+
   const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
   const estadisticas = calcularEstadisticas();
 
@@ -500,21 +579,22 @@ export default function VerEvaluacionesAdmin() {
         <div>
           <h1 className="text-3xl font-bold">Ver Evaluaciones</h1>
           <p className="text-muted-foreground mt-2">
-            Consulta y edita las calificaciones de evaluaciones completadas
+            Consulta las calificaciones de evaluaciones completadas
           </p>
         </div>
       </div>
 
-      {/* Filtros de Periodo y Lapso */}
+      {/* Filtros: Periodo + Lapso + Sección */}
       <Card>
         <CardHeader>
-          <CardTitle>Periodo y Lapso</CardTitle>
+          <CardTitle>Filtros de Búsqueda</CardTitle>
           <CardDescription>
-            Selecciona el periodo escolar y el lapso para buscar las evaluaciones
+            Selecciona el periodo, lapso y sección para ver las evaluaciones
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent>
+          <div className={`grid grid-cols-1 gap-4 ${materiasDisponibles.length > 0 ? "md:grid-cols-2 lg:grid-cols-4" : "md:grid-cols-3"}`}>
+            {/* Periodo */}
             <div className="space-y-2">
               <Label>Periodo Escolar</Label>
               <Select value={periodoId} onValueChange={setPeriodoId} disabled={isLoadingFiltros}>
@@ -531,6 +611,7 @@ export default function VerEvaluacionesAdmin() {
               </Select>
             </div>
 
+            {/* Lapso */}
             <div className="space-y-2">
               <Label>Lapso</Label>
               <Select
@@ -550,112 +631,364 @@ export default function VerEvaluacionesAdmin() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Selector de Sección y Evaluación */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Seleccionar Evaluación</CardTitle>
-          <CardDescription>
-            Elige la sección y luego la evaluación para ver y editar las calificaciones
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="max-w-md">
+            {/* Sección */}
             <SectionSelector
               secciones={secciones}
               seccionSeleccionada={seccionSeleccionada}
-              onSelect={setSeccionSeleccionada}
+              onSelect={(id) => { setSeccionSeleccionada(id); setEvaluacionSeleccionada(""); setMateriaFiltro(""); }}
               isLoading={isLoadingEvaluaciones}
               open={openSectionCombobox}
               setOpen={setOpenSectionCombobox}
             />
+
+            {/* Materia — combobox con búsqueda */}
+            {materiasDisponibles.length > 0 && (
+              <div className="space-y-2">
+                <Label>Materia</Label>
+                <Popover open={openMateriaCombobox} onOpenChange={setOpenMateriaCombobox}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openMateriaCombobox}
+                      className="w-full justify-between font-normal"
+                    >
+                      <span className="truncate">
+                        {materiaFiltro
+                          ? (materiasDisponibles.find(m => m.id === materiaFiltro)?.nombre ?? "Todas las materias")
+                          : "Todas las materias"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[280px] p-0">
+                    <Command>
+                      <CommandInput placeholder="Buscar materia..." />
+                      <CommandList>
+                        <CommandEmpty>No se encontraron materias.</CommandEmpty>
+                        <CommandGroup>
+                          {/* Opción para limpiar filtro */}
+                          <CommandItem
+                            value="__todas__"
+                            onSelect={() => {
+                              setMateriaFiltro("");
+                              setEvaluacionSeleccionada("");
+                              setOpenMateriaCombobox(false);
+                            }}
+                          >
+                            <Check className={`mr-2 h-4 w-4 ${!materiaFiltro ? "opacity-100" : "opacity-0"}`} />
+                            Todas las materias
+                          </CommandItem>
+                          {materiasDisponibles.map((m) => (
+                            <CommandItem
+                              key={m.id}
+                              value={m.nombre}
+                              onSelect={() => {
+                                setMateriaFiltro(m.id === materiaFiltro ? "" : m.id);
+                                setEvaluacionSeleccionada("");
+                                setOpenMateriaCombobox(false);
+                              }}
+                            >
+                              <Check className={`mr-2 h-4 w-4 ${m.id === materiaFiltro ? "opacity-100" : "opacity-0"}`} />
+                              {m.nombre}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+
+            {/* Status */}
+            {seccionSeleccionada && (
+              <div className="space-y-2">
+                <Label>Estado</Label>
+                <Select
+                  value={statusFiltro || "__all_status__"}
+                  onValueChange={(v) => { setStatusFiltro(v === "__all_status__" ? "" : v); setEvaluacionSeleccionada(""); }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all_status__">Todas</SelectItem>
+                    <SelectItem value="EVALUADA">Evaluadas</SelectItem>
+                    <SelectItem value="POR EVALUAR">Por Evaluar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
-
-          {seccionSeleccionada && (
-            <div>
-              <EvaluationSelector
-                evaluaciones={evaluacionesFiltradasPorSeccion}
-                evaluacionSeleccionada={evaluacionSeleccionada}
-                onSelectEvaluacion={handleSelectEvaluacion}
-                isLoading={isLoadingEvaluaciones}
-              />
-            </div>
-          )}
-
-          {evaluacion && <EvaluationDetails evaluacion={evaluacion} />}
         </CardContent>
       </Card>
 
-      {/* Estadísticas y Tabla de Notas */}
+      {/* Tabla de Evaluaciones de la sección */}
+      {seccionSeleccionada && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Evaluaciones</CardTitle>
+            <CardDescription>
+              {evaluacionesAMostrar.length} evaluación(es)
+              {materiaFiltro ? ` de ${materiasDisponibles.find(m => m.id === materiaFiltro)?.nombre}` : ""}
+              {statusFiltro ? ` · ${statusFiltro === "EVALUADA" ? "Evaluadas" : "Por Evaluar"}` : ""}
+              {` para esta sección`}. Haz clic en una para ver las calificaciones.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingEvaluaciones ? (
+              <div className="flex justify-center items-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                <span className="ml-2 text-muted-foreground">Cargando evaluaciones...</span>
+              </div>
+            ) : evaluacionesAMostrar.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">
+                No hay evaluaciones completadas para esta sección.
+              </p>
+            ) : (
+              <div className="rounded-md border overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="px-4 py-3 text-left font-medium">#</th>
+                      <th className="px-4 py-3 text-left font-medium">Evaluación</th>
+                      <th className="px-4 py-3 text-left font-medium">Materia</th>
+                      <th className="px-4 py-3 text-left font-medium">Tipo</th>
+                      <th className="px-4 py-3 text-left font-medium">Fecha</th>
+                      <th className="px-4 py-3 text-left font-medium">Porcentaje</th>
+                      <th className="px-4 py-3 text-left font-medium">Estado</th>
+                      <th className="px-4 py-3 text-left font-medium">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {evaluacionesAMostrar.map((ev, idx) => {
+                      const isSelected = evaluacionSeleccionada === ev.id;
+                      return (
+                        <tr
+                          key={ev.id}
+                          onClick={() => handleSelectEvaluacion(ev.id!)}
+                          className={`border-b cursor-pointer transition-colors hover:bg-muted/50 ${
+                            isSelected ? "bg-blue-50 dark:bg-blue-950/30" : ""
+                          }`}
+                        >
+                          <td className="px-4 py-3 text-muted-foreground">{idx + 1}</td>
+                          <td className="px-4 py-3 font-medium">
+                            {ev.nombre_evaluacion}
+                            {isSelected && (
+                              <span className="ml-2 inline-block text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                                Seleccionada
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">{ev.materia_nombre || "—"}</td>
+                          <td className="px-4 py-3 capitalize">{ev.tipo_evaluacion || "—"}</td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {ev.fecha
+                              ? new Date(ev.fecha + "T00:00:00").toLocaleDateString("es-VE", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-3">{ev.porcentaje ?? "—"}%</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              ev.status === "EVALUADA"
+                                ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                                : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                            }`}>
+                              {ev.status === "EVALUADA" ? "Evaluada" : "Por Evaluar"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-muted"
+                                onClick={() => { setEvaluacionAEditar(ev); }}
+                                title="Editar la Información de esta Evaluación"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => { setEvaluacionAEliminar(ev); setDeleteDialogOpen(true); }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Calificaciones de la evaluación seleccionada */}
       {evaluacion && (
         <>
-          {!isLoadingNotas && notas.length > 0 && (
+          <EvaluationDetails evaluacion={evaluacion} />
+
+          {/* Evaluación aún no completada */}
+          {evaluacion.status !== "EVALUADA" ? (
             <Card>
-              <CardHeader>
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <CardTitle>Calificaciones</CardTitle>
-                    <CardDescription>
-                      {notasFiltradas.length} de {notas.length} estudiante(s)
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1 md:w-64">
-                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar estudiante o cédula..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-8"
-                      />
+              <CardContent className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+                <Clock className="h-12 w-12 opacity-40" />
+                <p className="font-medium text-base">Calificaciones no disponibles</p>
+                <p className="text-sm text-center max-w-sm">
+                  Esta evaluación aún no ha sido completada. Las calificaciones se cargarán una vez que el docente la marque como evaluada.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {!isLoadingNotas && notas.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <CardTitle>Calificaciones</CardTitle>
+                        <CardDescription>
+                          {notasFiltradas.length} de {notas.length} estudiante(s)
+                        </CardDescription>
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1 md:w-64">
+                          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Buscar estudiante o cédula..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-8"
+                          />
+                        </div>
+                        <Button onClick={handleExportPDF} variant="outline" className="shrink-0">
+                          <FileText className="h-4 w-4 mr-2" />
+                          Ver Planilla
+                        </Button>
+                      </div>
                     </div>
-                    <Button onClick={handleExportPDF} variant="outline" className="shrink-0">
-                      <FileText className="h-4 w-4 mr-2" />
-                      Ver Planilla
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {estadisticas && <GradesStatistics estadisticas={estadisticas} />}
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {estadisticas && <GradesStatistics estadisticas={estadisticas} />}
 
-                {notasFiltradas.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    {searchTerm ? "No se encontraron resultados" : "No hay calificaciones registradas"}
-                  </div>
-                ) : (
-                  <GradesTable
-                    notas={notasFiltradas}
-                    evaluacion={evaluacion}
-                    onEdit={handleEditGrade}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          )}
+                    {notasFiltradas.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        {searchTerm ? "No se encontraron resultados" : "No hay calificaciones registradas"}
+                      </div>
+                    ) : (
+                      <GradesTable
+                        notas={notasFiltradas}
+                        evaluacion={evaluacion}
+                        onEdit={canEditGrades ? handleEditGrade : undefined}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
-          {isLoadingNotas && (
-            <Card>
-              <CardContent className="flex justify-center items-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                <span className="ml-2">Cargando calificaciones...</span>
-              </CardContent>
-            </Card>
+              {isLoadingNotas && (
+                <Card>
+                  <CardContent className="flex justify-center items-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <span className="ml-2">Cargando calificaciones...</span>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
         </>
       )}
 
+      {/* Dialog: Confirmar eliminación con contraseña */}
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => { if (!isDeleting) { setDeleteDialogOpen(open); if (!open) { setDeletePassword(""); } } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Eliminar Evaluación
+            </DialogTitle>
+            <DialogDescription className="text-sm">
+              Vas a eliminar permanentemente la evaluación{" "}
+              <span className="font-semibold">&ldquo;{evaluacionAEliminar?.nombre_evaluacion}&rdquo;</span>{" "}
+              y todas sus calificaciones registradas. Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <Label htmlFor="delete-password" className="flex items-center gap-2">
+              <LockIcon className="h-4 w-4" />
+              Confirma tu contraseña de acceso
+            </Label>
+            <div className="relative">
+              <Input
+                id="delete-password"
+                type="password"
+                placeholder="Ingresa tu contraseña..."
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && deletePassword && !isDeleting) handleDeleteEvaluacion(); }}
+                disabled={isDeleting}
+                autoComplete="current-password"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setDeleteDialogOpen(false); setDeletePassword(""); }} disabled={isDeleting}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteEvaluacion}
+              disabled={!deletePassword || isDeleting}
+            >
+              {isDeleting ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Eliminando...</>
+              ) : (
+                <><Trash2 className="h-4 w-4 mr-2" /> Eliminar definitivamente</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog de Edición */}
-      <EditGradeDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        nota={notaAEditar}
-        evaluacion={evaluacion!}
-        onSave={handleSaveGrade}
-      />
+      {evaluacion && (
+        <EditGradeDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          nota={notaAEditar}
+          evaluacion={evaluacion}
+          onSave={handleSaveGrade}
+        />
+      )}
+
+      {/* Dialog de Edición de Evaluaciones Generales */}
+      <CrearEvaluacionDialog
+        evaluacionToEdit={evaluacionAEditar}
+        onEvaluacionCreada={() => {
+          loadEvaluacionesPeriodoLapso();
+          setEvaluacionAEditar(null);
+        }}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setEvaluacionAEditar(null);
+        }}
+      >
+        <div className="hidden"></div>
+      </CrearEvaluacionDialog>
+
     </div>
   );
 }

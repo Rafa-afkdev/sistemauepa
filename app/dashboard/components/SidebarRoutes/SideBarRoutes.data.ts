@@ -122,7 +122,7 @@ export const DataIngresarNotas = [
 export const DataNotasSidebar = [
     {
         icon: FilePlus,
-        label: "Generar Planilla",
+        label: "Sábana de Notas",
         href: "/dashboard/notas",
     },
     {
@@ -153,7 +153,7 @@ export const DataEvaluacionesSidebar = [
 export const DataEvaluacionesAdminSidebar = [
     {
         icon: FileText,
-        label: "Ver / Editar Evaluaciones",
+        label: "Ver Evaluaciones",
         href: "/dashboard/ver-evaluaciones",
     },
 ]

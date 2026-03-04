@@ -61,10 +61,10 @@ export default function VerNotas() {
   const [searchTerm, setSearchTerm] = useState("");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [notaAEditar, setNotaAEditar] = useState<NotaConEstudiante | null>(null);
-  
+
   const [todos_cortes, setTodosCortes] = useState<CortesEscolares[]>([]);
 
-  // Cargar TODOS los cortes para validar edición según fecha de la evaluación
+  // Cargar todos los cortes para validar edición
   useEffect(() => {
     const loadCortes = async () => {
       try {
@@ -78,27 +78,23 @@ export default function VerNotas() {
     loadCortes();
   }, []);
 
-  // Helper para calcular si se puede editar (se usa debajo, después de que evaluacion está declarada)
-  const computeCanEdit = (evalFecha: string | undefined) => {
+  // Puede editar si el corte que cubre la evaluación está ACTIVO y hoy está dentro del rango
+  const computeCanEdit = (evalFecha: string | undefined): boolean => {
     if (!evalFecha || todos_cortes.length === 0) return false;
-
     const fechaEval = new Date(evalFecha + "T00:00:00");
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
-
-    const corteCoincide = todos_cortes.find(c => {
+    const corte = todos_cortes.find(c => {
       const inicio = new Date(c.fecha_inicio + "T00:00:00");
       const fin   = new Date(c.fecha_fin   + "T23:59:59");
       return fechaEval >= inicio && fechaEval <= fin;
     });
-
-    if (!corteCoincide) return false;
-    if (corteCoincide.status !== "ACTIVO") return false;
-
-    const inicioActivo = new Date(corteCoincide.fecha_inicio + "T00:00:00");
-    const finActivo   = new Date(corteCoincide.fecha_fin   + "T23:59:59");
-    return hoy >= inicioActivo && hoy <= finActivo;
+    if (!corte || corte.status !== "ACTIVO") return false;
+    const ini = new Date(corte.fecha_inicio + "T00:00:00");
+    const fin = new Date(corte.fecha_fin   + "T23:59:59");
+    return hoy >= ini && hoy <= fin;
   };
+
 
   // Cargar evaluaciones completadas del docente
   useEffect(() => {
@@ -401,83 +397,65 @@ export default function VerNotas() {
     setEditDialogOpen(true);
   };
 
-  const handleSaveGrade = async (notaId: string, nuevasNotasCriterios: NotasCriterios[], motivo: string) => {
+  const handleSaveGrade = async (
+    notaId: string,
+    nuevasNotasCriterios: NotasCriterios[],
+    motivo: string
+  ) => {
     if (!user?.uid) return;
-
     try {
-      // Buscar la nota actual en el state (puede ser una nota existente o un placeholder)
-      // Si notaId viene vacío, buscamos por estudiante_id en notaAEditar
       const notaActual = notas.find(n => n.id === notaId) || notaAEditar;
-      
-      if (!notaActual) {
-        throw new Error("No se encontró la nota");
-      }
+      if (!notaActual) throw new Error("No se encontró la nota");
 
-      // Calcular la nueva nota definitiva
-      const evaluacion = evaluaciones.find((e) => e.id === evaluacionSeleccionada);
-      if (!evaluacion) {
-        throw new Error("No se encontró la evaluación");
-      }
+      const eval_ = evaluaciones.find(e => e.id === evaluacionSeleccionada);
+      if (!eval_) throw new Error("No se encontró la evaluación");
 
       let nuevaNotaDefinitiva = 0;
-      evaluacion.criterios.forEach((criterio) => {
-        const notaCriterio = nuevasNotasCriterios.find(nc => nc.criterio_numero === criterio.nro_criterio);
-        const valor = notaCriterio?.nota_obtenida || 0;
-        const porcentaje = criterio.ponderacion / evaluacion.criterios.reduce((sum, c) => sum + c.ponderacion, 0);
-        nuevaNotaDefinitiva += valor * porcentaje;
+      eval_.criterios.forEach(criterio => {
+        const nc = nuevasNotasCriterios.find(nc => nc.criterio_numero === criterio.nro_criterio);
+        const pct = criterio.ponderacion / eval_.criterios.reduce((s, c) => s + c.ponderacion, 0);
+        nuevaNotaDefinitiva += (nc?.nota_obtenida || 0) * pct;
       });
 
-      // Si tiene ID, es actualización
       if (notaId && notaId !== "") {
-        // Verificar si hubo cambios
         if (nuevaNotaDefinitiva !== notaActual.nota_definitiva) {
-          // Crear entrada de historial
           const nuevoCambio = {
             fecha: Timestamp.now(),
             nota_anterior: notaActual.nota_definitiva,
             nota_nueva: nuevaNotaDefinitiva,
-            motivo: motivo,
+            motivo,
             usuario_id: user.uid,
           };
-
-          // Obtener historial existente o crear uno nuevo
-          const historialActual = notaActual.historial_cambios || [];
-
-          // Actualizar en Firestore
           await updateDoc(doc(db, "notas_evaluaciones", notaId), {
             notas_criterios: nuevasNotasCriterios,
             nota_definitiva: nuevaNotaDefinitiva,
-            historial_cambios: [...historialActual, nuevoCambio],
+            historial_cambios: [...(notaActual.historial_cambios || []), nuevoCambio],
             updatedAt: serverTimestamp(),
-            // Asegurar que updated_at también se actualice si se usa ese campo
             updated_at: serverTimestamp(),
           });
-
           showToast.success("Calificación actualizada correctamente");
         } else {
           showToast.info("No se detectaron cambios en la nota definitiva");
         }
       } else {
-        // ES NUEVA NOTA
         await addDoc(collection(db, "notas_evaluaciones"), {
           evaluacion_id: evaluacionSeleccionada,
-          estudiante_id: notaActual.estudiante_id, // Usar ID del estudiante del placeholder
+          estudiante_id: notaActual.estudiante_id,
           estudiante_nombre: `${notaActual.estudiante?.nombres} ${notaActual.estudiante?.apellidos}`,
           docente_id: user.uid,
           notas_criterios: nuevasNotasCriterios,
           nota_definitiva: nuevaNotaDefinitiva,
-          observacion: "", // Opcional: permitir observación en el dialog
-          historial_cambios: [], // Inicialmente vacío
+          observacion: "",
+          historial_cambios: [],
           created_at: serverTimestamp(),
           updated_at: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
         showToast.success("Calificación registrada correctamente");
       }
-        
-      // Recargar las notas
+
       await loadNotas();
-      setEditDialogOpen(false); // Cerrar diálogo asegúrate
+      setEditDialogOpen(false);
     } catch (error) {
       console.error("Error al guardar calificación:", error);
       showToast.error("Error al actualizar la calificación");
@@ -578,14 +556,14 @@ export default function VerNotas() {
                 {/* Estadísticas */}
                 {estadisticas && <GradesStatistics estadisticas={estadisticas} />}
 
-                {/* Mensaje de Restricción */}
-                {!canEditGrades && (
-                  <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-4 flex items-start gap-3 my-4">
+                {/* Advertencia cuando no se puede editar */}
+                {!canEditGrades && evaluacion && (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-md p-4 flex items-start gap-3 my-4">
                     <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
                     <div>
-                      <h4 className="font-semibold text-sm">Edición Deshabilitada</h4>
+                      <h4 className="font-semibold text-sm">Edición No Disponible</h4>
                       <p className="text-sm mt-1">
-                        Actualmente no hay un Corte de Notas activo o la fecha actual está fuera del rango permitido. No se pueden modificar las calificaciones.
+                        El Corte de Notas correspondiente a esta evaluación está cerrado o bloqueado. Solo el administrador puede modificar estas calificaciones.
                       </p>
                     </div>
                   </div>
@@ -600,7 +578,7 @@ export default function VerNotas() {
                   <GradesTable 
                     notas={notasFiltradas} 
                     evaluacion={evaluacion} 
-                    onEdit={canEditGrades ? handleEditGrade : undefined} 
+                    onEdit={canEditGrades ? handleEditGrade : undefined}
                   />
                 )}
               </CardContent>

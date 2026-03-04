@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Estudiantes } from "@/interfaces/estudiantes.interface";
 import { Evaluaciones } from "@/interfaces/evaluaciones.interface";
@@ -36,6 +36,12 @@ export function GradesTable({ notas, evaluacion, onEdit }: GradesTableProps) {
     );
   }
 
+  const notasOrdenadas = [...notas].sort((a, b) => {
+    const cedulaA = a.estudiante?.cedula ? Number(a.estudiante.cedula) : 0;
+    const cedulaB = b.estudiante?.cedula ? Number(b.estudiante.cedula) : 0;
+    return cedulaA - cedulaB;
+  });
+
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -59,10 +65,10 @@ export function GradesTable({ notas, evaluacion, onEdit }: GradesTableProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {notas.map((nota, index) => {
+          {notasOrdenadas.map((nota, index) => {
             const notaAprobada = nota.nota_definitiva >= 10;
             return (
-              <TableRow key={nota.id}>
+              <TableRow key={nota.id || nota.estudiante_id}>
                 <TableCell>{index + 1}</TableCell>
                 <TableCell className="font-medium">
                   {nota.estudiante?.apellidos}, {nota.estudiante?.nombres}
