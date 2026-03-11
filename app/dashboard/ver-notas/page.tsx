@@ -532,7 +532,7 @@ export default function VerNotas() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Periodo */}
             <div className="space-y-2">
               <Label>Periodo Escolar</Label>
@@ -573,13 +573,15 @@ export default function VerNotas() {
               setOpen={setOpenSectionCombobox}
             />
 
-            {/* Evaluación */}
-            <EvaluationSelector
-              evaluaciones={evaluacionesFiltradasPorSeccion}
-              evaluacionSeleccionada={evaluacionSeleccionada}
-              onSelectEvaluacion={handleSelectEvaluacion}
-              isLoading={isLoadingEvaluaciones}
-            />
+            {/* Materia + Evaluación — ocupa 2 columnas */}
+            <div className="lg:col-span-2">
+              <EvaluationSelector
+                evaluaciones={evaluacionesFiltradasPorSeccion}
+                evaluacionSeleccionada={evaluacionSeleccionada}
+                onSelectEvaluacion={handleSelectEvaluacion}
+                isLoading={isLoadingEvaluaciones}
+              />
+            </div>
           </div>
 
           {evaluacion && <EvaluationDetails evaluacion={evaluacion} />}

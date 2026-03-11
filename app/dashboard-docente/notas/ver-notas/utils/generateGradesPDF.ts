@@ -50,13 +50,16 @@ export async function generarReportePDF(
   const anchoDisponible = pageWidth - (margin * 2);  // Total available width
   const colNumero = 40;
   const colCedula = 85;
-  const colNombre = 200;
   const colNotaFinal = 70;
   
-  // Calcular dinámicamente el ancho de cada criterio usando el espacio restante
+  // Calcular dinámicamente el ancho de cada criterio con un máximo de 80px
   const numCriterios = evaluacion.criterios.length;
-  const anchoRestante = anchoDisponible - colNumero - colCedula - colNombre - colNotaFinal;
-  const colCriterio = anchoRestante / numCriterios;  // Distribute remaining space equally
+  const maxColCriterio = 80;
+  const colCriterio = Math.min(maxColCriterio, (anchoDisponible - colNumero - colCedula - 180 - colNotaFinal) / numCriterios);
+  const totalCriterios = colCriterio * numCriterios;
+  
+  // El espacio restante va a la columna de nombre (mínimo 180px)
+  const colNombre = anchoDisponible - colNumero - colCedula - totalCriterios - colNotaFinal;
   
   const anchoTotal = anchoDisponible;  // Use full width
 
@@ -345,12 +348,18 @@ export async function generarReportePDF(
     });
     xPos += colCedula;
 
-    // APELLIDOS Y NOMBRES
-    const nombreCompleto = `${nota.estudiante?.apellidos || ""} ${nota.estudiante?.nombres || ""}`.trim().substring(0, 40);  // More characters
-    currentPage!.drawText(nombreCompleto, {
+    // APELLIDOS Y NOMBRES — truncar dinámicamente según el ancho real de la columna
+    const nombreCompleto = `${nota.estudiante?.apellidos || ""} ${nota.estudiante?.nombres || ""}`.trim();
+    // Ajustar el texto para que no exceda el ancho de la celda (con padding de 10px)
+    const maxNombreWidth = colNombre - 10;
+    let nombreTruncado = nombreCompleto;
+    while (nombreTruncado.length > 3 && helvetica.widthOfTextAtSize(nombreTruncado, 9) > maxNombreWidth) {
+      nombreTruncado = nombreTruncado.slice(0, -1);
+    }
+    currentPage!.drawText(nombreTruncado, {
       x: xPos + 5,
       y: currentY - lineHeight + 6,
-      size: 9,  // Increased from 8
+      size: 9,
       font: helvetica,
     });
     xPos += colNombre;
@@ -537,14 +546,22 @@ export async function generarReportePDF(
     color: rgb(0.8, 0, 0),
   });
 
-  // Generar y abrir PDF en el navegador
+  // Generar PDF con nombre descriptivo
   const pdfBytes = await pdfDoc.save();
   // @ts-expect-error - pdf-lib Uint8Array type incompatible with TS Blob constructor, works fine at runtime
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
 
-  // Abrir en nueva pestaña
-  window.open(url, "_blank");
+  // Construir nombre de archivo: actividad_materia_fecha.pdf
+  const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9\-_áéíóúÁÉÍÓÚñÑüÜ ]/g, "").trim().replace(/\s+/g, "_");
+  const fechaFormateada = evaluacion.fecha ? evaluacion.fecha.split("-").reverse().join("-") : "sin-fecha";
+  const nombreArchivo = `${sanitize(evaluacion.nombre_evaluacion || "Evaluacion")}_${sanitize(evaluacion.materia_nombre || "Materia")}_${fechaFormateada}.pdf`;
+
+  // Descargar con nombre descriptivo
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nombreArchivo;
+  link.click();
 
   // Limpiar el URL después de un tiempo
   setTimeout(() => {

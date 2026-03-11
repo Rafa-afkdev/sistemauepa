@@ -29,6 +29,7 @@ import { Check, ChevronLeft, ChevronsUpDown, FileText, Loader2, RefreshCw } from
 import Link from "next/link";
 import { showToast } from "nextjs-toast-notify";
 import { useEffect, useRef, useState } from "react";
+import { generarSabanaNotasPDF } from "@/utils/generateSabanaNotasPDF";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -92,7 +93,8 @@ export default function SabanaNotasPage() {
   const [seccionNombre, setSeccionNombre] = useState("");
 
   const tableRef = useRef<HTMLDivElement>(null);
-  
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
   const [showEmptyConfirm, setShowEmptyConfirm] = useState(false);
   const [pendingEvData, setPendingEvData] = useState<{ validSectionIds: string[]; mainSeccion: Secciones | undefined } | null>(null);
 
@@ -277,11 +279,12 @@ export default function SabanaNotasPage() {
           const gradosAños = mData.grados_años || [];
           if (gradosAños.includes(mainSeccion.grado_año)) {
             const nombre = mData.nombre as string;
+            const skip = new Set(["de","del","la","el","y","e","a","en","los","las","un","una"]);
             const abrev = nombre
               .split(" ")
-              .map(w => w.substring(0, 2).toUpperCase())
-              .join("")
-              .substring(0, 4);
+              .filter(w => w.length > 0 && !skip.has(w.toLowerCase()))
+              .map(w => w[0].toUpperCase())
+              .join("");
             materiasMap[doc.id] = { id: doc.id, nombre, abreviatura: abrev };
           }
         });
@@ -294,11 +297,12 @@ export default function SabanaNotasPage() {
         if (!snap.empty) {
           const d = snap.docs[0];
           const nombre = d.data().nombre as string;
+          const skip = new Set(["de","del","la","el","y","e","a","en","los","las","un","una"]);
           const abrev = nombre
             .split(" ")
-            .map(w => w.substring(0, 2).toUpperCase())
-            .join("")
-            .substring(0, 4);
+            .filter(w => w.length > 0 && !skip.has(w.toLowerCase()))
+            .map(w => w[0].toUpperCase())
+            .join("");
           materiasMap[mid] = { id: mid, nombre, abreviatura: abrev };
         } else {
           materiasMap[mid] = { id: mid, nombre: mid, abreviatura: mid.substring(0, 4).toUpperCase() };
@@ -412,9 +416,34 @@ export default function SabanaNotasPage() {
     }
   };
 
-  // ── Print handler ───────────────────────────────────────────────────────────
-  const handlePrint = () => {
-    window.print();
+  // ── PDF handler ────────────────────────────────────────────────────────────
+  const handleGeneratePDF = async () => {
+    if (!periodoObj || !lapsoObj) return;
+    setIsGeneratingPDF(true);
+    try {
+      await generarSabanaNotasPDF({
+        seccionNombre,
+        periodoNombre: periodoObj.nombre,
+        lapsoNombre: lapsoObj.lapso,
+        materias,
+        filas: filas.map(f => ({
+          apellidos:   f.estudiante.apellidos,
+          nombres:     f.estudiante.nombres,
+          tipo_cedula: f.estudiante.tipo_cedula,
+          cedula:      f.estudiante.cedula,
+          notas:       f.notas,
+          promedio:    f.promedio,
+          aprobadas:   f.aprobadas,
+          aplazadas:   f.aplazadas,
+          posicion:    f.posicion,
+        })),
+      });
+    } catch (e) {
+      console.error(e);
+      showToast.error("Error generando el PDF");
+    } finally {
+      setIsGeneratingPDF(false);
+    }
   };
 
   const seccionObj = secciones.find(s => s.id === seccionId);
@@ -548,9 +577,15 @@ export default function SabanaNotasPage() {
                 {periodoObj?.nombre} · {lapsoObj?.lapso} · {filas.length} estudiante(s) · {materias.length} materia(s)
               </CardDescription>
             </div>
-            <Button variant="outline" onClick={handlePrint} className="print:hidden shrink-0">
-              <FileText className="h-4 w-4 mr-2" />
-              Imprimir / PDF
+            <Button
+              variant="outline"
+              onClick={handleGeneratePDF}
+              disabled={isGeneratingPDF}
+              className="print:hidden shrink-0"
+            >
+              {isGeneratingPDF
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generando PDF...</>
+                : <><FileText className="h-4 w-4 mr-2" /> Exportar PDF</>}
             </Button>
           </CardHeader>
           <CardContent>
