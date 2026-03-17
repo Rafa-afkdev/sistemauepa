@@ -280,23 +280,54 @@ export function CrearEvaluacionDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!nombreEvaluacion || (!isEvaluada && (!tipoEvaluacion || !materiaId || seccionesIds.length === 0 || !fecha))) {
-      showToast.error("Por favor completa todos los campos requeridos");
+    if (!user?.uid) {
+      showToast.error("Error: Sesión de usuario no válida o expirada");
       return;
     }
 
-    if (!isEvaluada && (porcentaje <= 0 || porcentaje > 100)) {
-      showToast.error("El porcentaje debe estar entre 1 y 100");
+    if (!nombreEvaluacion || nombreEvaluacion.trim() === "") {
+      showToast.error("El nombre de la evaluación es obligatorio");
       return;
+    }
+
+    if (!isEvaluada) {
+      if (!tipoEvaluacion || tipoEvaluacion.trim() === "") {
+        showToast.error("El tipo de evaluación es obligatorio");
+        return;
+      }
+      if (!lapsoId || lapsoId.trim() === "") {
+        showToast.error("Debes seleccionar un lapso escolar");
+        return;
+      }
+      if (!periodoEscolarId || periodoEscolarId.trim() === "") {
+        showToast.error("El periodo escolar es inválido o no existe");
+        return;
+      }
+      if (!materiaId || materiaId.trim() === "") {
+        showToast.error("Debes seleccionar una materia");
+        return;
+      }
+      if (!seccionesIds || seccionesIds.length === 0) {
+        showToast.error("Debes seleccionar al menos una sección");
+        return;
+      }
+      if (!fecha) {
+        showToast.error("Debes seleccionar una fecha válida");
+        return;
+      }
+      if (porcentaje === undefined || porcentaje === null || porcentaje <= 0 || porcentaje > 100) {
+        showToast.error("El porcentaje debe estar entre 1 y 100");
+        return;
+      }
     }
 
     // Validar criterios solo si tiene criterios personalizados y no está evaluada
     let criteriosFinales = criterios;
 
     if (!isEvaluada && tieneCriterios) {
-      const criteriosValidos = criterios.every(c => c.nombre && c.ponderacion > 0);
+      const criteriosValidos = criterios.every(c => c.nombre && c.nombre.trim() !== "" && c.ponderacion > 0);
       if (!criteriosValidos) {
-        showToast.error("Todos los criterios deben tener nombre y ponderación");
+        showToast.error("Todos los criterios deben tener nombre válido y ponderación mayor a 0");
         return;
       }
 
@@ -408,16 +439,16 @@ export function CrearEvaluacionDialog({
           ? criterios
           : [{ nro_criterio: "1", nombre: "Criterio Único", ponderacion: 20 }];
 
-        let evaluacionesCreadas = 0;
         const evaluacionesRef = collection(db, "evaluaciones");
 
-        console.log("🚀 INICIO - Creación múltiple", {
+        console.log("🚀 INICIO - Creación múltiple asíncrona", {
           seccionesSeleccionadas: seccionesIds,
-          totalSecciones: seccionesIds.length
+          totalSecciones: seccionesIds.length,
+          lapsoAsignado: lapsoId
         });
 
-        // Iterar sobre cada sección seleccionada
-        for (const seccionId of seccionesIds) {
+        // Crear array de promesas para procesar todas las secciones de manera asíncrona en paralelo
+        const promesasCreacion = seccionesIds.map(async (seccionId, index) => {
           console.log(`📝 Procesando sección: ${seccionId}`);
           
           // Validar duplicidad para esta sección específica + materia + fecha
@@ -431,7 +462,6 @@ export function CrearEvaluacionDialog({
           const duplicadosSnapshot = await getDocs(qDuplicados);
 
           if (duplicadosSnapshot.docs.length > 0) {
-            // Obtener nombre de la sección y materia para el mensaje
             const seccionNombre = secciones.find(s => s.seccion_id === seccionId);
             const materiaNombre = materias.find(m => m.materia_id === materiaId);
             const nombreCorto = seccionNombre 
@@ -439,19 +469,18 @@ export function CrearEvaluacionDialog({
               : `Sección ${seccionId}`;
             
             console.log(`⚠️ DUPLICADO encontrado para ${nombreCorto} - ${materiaNombre?.materia_nombre}`);
-            showToast.warning(`Ya existe una evaluación de ${materiaNombre?.materia_nombre || 'esta materia'} para ${nombreCorto} en esta fecha. Se omitió esta sección.`);
-            continue; // Saltar esta sección y continuar con la siguiente
+            throw new Error(`Duplicado: Ya existe evaluación para ${nombreCorto} en esta fecha.`);
           }
 
-          // Crear evaluación para esta sección
+          // Crear evaluación para esta sección asegurando de enviar lapsoId y periodoEscolarId
           const evaluacionData = {
-            id_evaluacion: `EVAL${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id_evaluacion: `EVAL${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
             nombre_evaluacion: nombreEvaluacion,
             tipo_evaluacion: tipoEvaluacion,
-            lapsop_id: lapsoId,
+            lapsop_id: lapsoId, // <- Asignación explícita del lapso validado
             materia_id: materiaId,
             seccion_id: seccionId,
-            periodo_escolar_id: periodoEscolarId,
+            periodo_escolar_id: periodoEscolarId, // <- Asignación explícita del periodo
             docente_id: user?.uid || "",
             criterios: criteriosFinales,
             nota_definitiva: 20,
@@ -463,22 +492,39 @@ export function CrearEvaluacionDialog({
 
           console.log(`💾 Guardando evaluación para sección ${seccionId}`, evaluacionData);
           await addDocument("evaluaciones", evaluacionData);
-          evaluacionesCreadas++;
-          console.log(`✅ Evaluación ${evaluacionesCreadas} creada exitosamente`);
+          return seccionId;
+        });
 
-          // Pequeña pausa para evitar conflictos de timestamp
-          await new Promise(resolve => setTimeout(resolve, 10));
-        }
+        // Ejecutar todas las promesas en paralelo de manera segura
+        const resultados = await Promise.allSettled(promesasCreacion);
 
-        console.log("🏁 FIN - Creación múltiple", {
-          totalCreadas: evaluacionesCreadas,
+        let evaluacionesCreadas = 0;
+        let errores = 0;
+        let erroresMensajes: string[] = [];
+
+        resultados.forEach((resultado) => {
+          if (resultado.status === 'fulfilled') {
+            evaluacionesCreadas++;
+          } else {
+            errores++;
+            erroresMensajes.push(resultado.reason.message || "Error desconocido");
+            console.error("Error en creación de evaluación:", resultado.reason);
+          }
+        });
+
+        console.log("🏁 FIN - Creación múltiple asíncrona", {
+          creadas: evaluacionesCreadas,
+          errores: errores,
           totalSeleccionadas: seccionesIds.length
         });
 
         if (evaluacionesCreadas > 0) {
-          showToast.success(`${evaluacionesCreadas} evaluación(es) creada(s) exitosamente`);
+          showToast.success(`${evaluacionesCreadas} evaluación(es) creada(s) correctamente.`);
+          if (errores > 0) {
+            showToast.warning(`Hubo ${errores} sección(es) omitidas (e.g. duplicidad).`);
+          }
         } else {
-          showToast.error("No se pudo crear ninguna evaluación. Todas las secciones ya tienen evaluaciones programadas para esta fecha.");
+          showToast.error("No se pudo crear ninguna evaluación. " + (erroresMensajes[0] || "Ocurrió un error."));
           setIsSubmitting(false);
           return;
         }
