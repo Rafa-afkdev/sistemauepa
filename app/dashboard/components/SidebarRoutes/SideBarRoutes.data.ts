@@ -1,4 +1,4 @@
-import { BookOpen, CalendarClock, CalendarPlus, ClipboardEdit, FileEdit, FilePlus, FileText, LucideArrowLeftRight, PenBoxIcon, UserPlus2, UserRoundPlusIcon, Users } from "lucide-react";
+import { BookOpen, CalendarClock, CalendarPlus, ClipboardEdit, FileEdit, FilePlus, FileText, LucideArrowLeftRight, PenBoxIcon, Upload, UserPlus2, UserRoundPlusIcon, Users } from "lucide-react";
 
 export const DataEstudiantesSidebar = [
     {
@@ -139,6 +139,11 @@ export const DataNotasSidebar = [
         icon: BookOpen,
         label: "Boletines",
         href: "/dashboard/notas/boletin",
+    },
+    {
+        icon: Upload,
+        label: "Carga Directa",
+        href: "/dashboard/notas/carga-directa",
     },
 ]
 
