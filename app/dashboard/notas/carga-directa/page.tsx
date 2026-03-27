@@ -398,10 +398,58 @@ export default function CargaDirectaPage() {
         });
       }
 
-      // Tier 3: all materias for this nivel
+      // Tier 3: normalize ordinal variations (1er ↔ 1ro ↔ 1° ↔ Primero, etc.)
       if (materiasData.length === 0 && allMateriasForNivel.length > 0) {
-        console.warn(`[CargaDirecta] Fallback: loading all ${allMateriasForNivel.length} materias for nivel="${mappedNivel}"`);
-        materiasData.push(...allMateriasForNivel);
+        // Collect ALL grados_años values that appear in the DB for diagnostic purposes
+        const allGradosInDB = new Set<string>();
+        matSnap.docs.forEach((d) => {
+          const ga: string[] = d.data().grados_años ?? [];
+          ga.forEach((g) => allGradosInDB.add(g));
+        });
+
+        // Build a normalized version of grado_año: strip accents, lowercase, remove dots/spaces
+        const normalize = (s: string) =>
+          s
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "") // strip diacritics
+            .replace(/[°º.]/g, "")
+            .toLowerCase()
+            .trim();
+
+        const gradoNorm3 = normalize(mainSeccion.grado_año);
+
+        matSnap.docs.forEach((d) => {
+          const data = d.data();
+          const gradosAños: string[] = data.grados_años ?? [];
+          if (
+            gradosAños.some((g) => normalize(g) === gradoNorm3) &&
+            !materiasData.find((m) => m.id === d.id)
+          ) {
+            const SKIP_WORDS = new Set(["de","del","la","el","y","e","a","en","los","las","un","una","para","por"]);
+            const nombre = data.nombre as string;
+            const abreviatura = nombre.split(" ")
+              .filter((w) => w.length > 0 && !SKIP_WORDS.has(w.toLowerCase()))
+              .map((w) => w[0].toUpperCase())
+              .join("") || nombre.substring(0, 3).toUpperCase();
+            materiasData.push({ id: d.id, nombre, abreviatura });
+          }
+        });
+
+        // If still nothing, log a clear diagnostic so the admin can fix the data
+        if (materiasData.length === 0) {
+          const knownGrados = [...allGradosInDB].sort().join(" | ");
+          console.error(
+            `[CargaDirecta] ❌ El campo grado_año="${mainSeccion.grado_año}" de esta sección NO coincide con ningún valor en grados_años de las materias.\n` +
+            `Valores en BD: ${knownGrados}\n` +
+            `Por favor corrige el campo grado_año de la sección O el array grados_años de las materias en Firestore.`
+          );
+          showToast.error(
+            `Sin materias para grado_año="${mainSeccion.grado_año}". ` +
+            `Abre la consola del navegador para ver los valores disponibles y corregir los datos en Firestore.`
+          );
+          setIsLoadingGrid(false);
+          return;
+        }
       }
 
       materiasData.sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -414,6 +462,7 @@ export default function CargaDirectaPage() {
         setIsLoadingGrid(false);
         return;
       }
+
 
       // ── 2. Load estudiantes ───────────────────────────────────────────────
       const estudiantesIds: string[] = mainSeccion.estudiantes_ids ?? [];
@@ -808,34 +857,15 @@ export default function CargaDirectaPage() {
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-bold">Carga Directa de Notas</h1>
-            <Badge
-              variant="outline"
-              className="text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30 text-xs font-semibold tracking-wide"
-            >
-              HERRAMIENTA TEMPORAL
-            </Badge>
           </div>
           <p className="text-muted-foreground mt-1">
-            Registro expedito de nota definitiva por materia sin pasar por evaluaciones
+            Registro expedito de nota definitiva por materia
           </p>
         </div>
       </div>
 
       {/* ── Warning Banner ───────────────────────────────────────────────────── */}
-      <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700 px-5 py-4">
-        <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-        <div className="space-y-1 text-sm text-amber-800 dark:text-amber-300">
-          <p className="font-semibold">Herramienta de emergencia — uso excepcional</p>
-          <p>
-            Esta página permite cargar la <strong>nota lapso</strong> de cada materia
-            directamente sin registrar evaluaciones individuales. Úsala solo cuando el lapso
-            ya cerró y los docentes no pudieron registrar sus evaluaciones a tiempo.
-            Las notas se guardan en el sistema como una evaluación sintética del 100%, por
-            lo que serán visibles en la <strong>Sábana de Notas</strong> y los{" "}
-            <strong>Boletines</strong> normalmente.
-          </p>
-        </div>
-      </div>
+
 
       {/* ── Filters ─────────────────────────────────────────────────────────── */}
       <Card>
