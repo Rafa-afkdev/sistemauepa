@@ -128,15 +128,15 @@ type GridState = Record<string, Record<string, CeldaNota>>;
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function clampNota(raw: string): number {
-  const n = parseFloat(raw);
+  const n = parseInt(raw, 10);
   if (isNaN(n)) return 0;
-  return Math.min(NOTA_MAX, Math.max(0, parseFloat(n.toFixed(2))));
+  return Math.min(NOTA_MAX, Math.max(0, n));
 }
 
 /** Returns true if the string represents a valid, non-empty grade */
 function isValidInput(v: string): boolean {
-  const n = parseFloat(v);
-  return v.trim() !== "" && !isNaN(n) && n >= 0 && n <= NOTA_MAX;
+  const n = parseInt(v.trim(), 10);
+  return v.trim() !== "" && !isNaN(n) && n >= 0 && n <= NOTA_MAX && String(n) === v.trim();
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -547,17 +547,17 @@ export default function CargaDirectaPage() {
     materiaId: string,
     value: string
   ) => {
-    // Allow empty or partially typed decimals (e.g. "1." "1,")
-    const sanitized = value.replace(",", ".");
-    // Reject anything that isn't a valid number fragment
-    if (sanitized !== "" && !/^(\d+\.?\d*)?$/.test(sanitized)) return;
+    // Only allow up to 2 digits (integers 0–20)
+    if (value !== "" && !/^\d{0,2}$/.test(value)) return;
+    // Reject values beyond 20 as soon as we can tell
+    if (value !== "" && parseInt(value, 10) > NOTA_MAX) return;
     setGrid((prev) => ({
       ...prev,
       [estudianteId]: {
         ...prev[estudianteId],
         [materiaId]: {
           ...prev[estudianteId]?.[materiaId],
-          inputValue: sanitized,
+          inputValue: value,
         },
       },
     }));
@@ -1121,6 +1121,29 @@ export default function CargaDirectaPage() {
           </CardHeader>
 
           <CardContent className="p-0">
+            {/* ── Edit info bar: shows if there are already-saved grades ───── */}
+            {(() => {
+              const savedCount = estudiantes.reduce(
+                (a, est) =>
+                  a +
+                  materiasVisibles.filter(
+                    (mat) =>
+                      grid[est.id]?.[mat.id]?.savedNota !== null &&
+                      grid[est.id]?.[mat.id]?.savedNota !== undefined
+                  ).length,
+                0
+              );
+              return savedCount > 0 ? (
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-950/20 border-b text-xs text-blue-700 dark:text-blue-300">
+                  <span className="inline-block w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                  <span>
+                    <strong>{savedCount}</strong> nota(s) ya guardadas en la base de datos —{" "}
+                    <span className="font-medium">puedes editarlas directamente en la tabla y luego presionar Guardar.</span>
+                    {" "}Las celdas con punto azul tienen nota guardada.
+                  </span>
+                </div>
+              ) : null;
+            })()}
             <div className="overflow-x-auto rounded-b-lg">
               <table className="w-full text-xs border-collapse">
                 <thead>
@@ -1182,7 +1205,7 @@ export default function CargaDirectaPage() {
                           {est.tipo_cedula}-{est.cedula}
                         </div>
                       </td>
-                      {materiasVisibles.map((mat) => {
+                      {materiasVisibles.map((mat, matIdx) => {
                         const cell = grid[est.id]?.[mat.id];
                         const val = cell?.inputValue ?? "";
                         const isSaved = cell?.savedNota !== null && cell?.savedNota !== undefined;
@@ -1199,6 +1222,7 @@ export default function CargaDirectaPage() {
                           >
                             <div className="relative inline-block w-12">
                               <Input
+                                id={`cell-${idx}-${matIdx}`}
                                 type="text"
                                 inputMode="decimal"
                                 value={val}
@@ -1206,6 +1230,41 @@ export default function CargaDirectaPage() {
                                   handleCellChange(est.id, mat.id, e.target.value)
                                 }
                                 onBlur={() => handleCellBlur(est.id, mat.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === "ArrowDown") {
+                                    e.preventDefault();
+                                    handleCellBlur(est.id, mat.id);
+                                    const next = document.getElementById(
+                                      `cell-${idx + 1}-${matIdx}`
+                                    ) as HTMLInputElement | null;
+                                    next?.focus();
+                                    next?.select();
+                                  } else if (e.key === "ArrowUp") {
+                                    e.preventDefault();
+                                    handleCellBlur(est.id, mat.id);
+                                    const prev = document.getElementById(
+                                      `cell-${idx - 1}-${matIdx}`
+                                    ) as HTMLInputElement | null;
+                                    prev?.focus();
+                                    prev?.select();
+                                  } else if (e.key === "ArrowRight") {
+                                    e.preventDefault();
+                                    handleCellBlur(est.id, mat.id);
+                                    const next = document.getElementById(
+                                      `cell-${idx}-${matIdx + 1}`
+                                    ) as HTMLInputElement | null;
+                                    next?.focus();
+                                    next?.select();
+                                  } else if (e.key === "ArrowLeft") {
+                                    e.preventDefault();
+                                    handleCellBlur(est.id, mat.id);
+                                    const prev = document.getElementById(
+                                      `cell-${idx}-${matIdx - 1}`
+                                    ) as HTMLInputElement | null;
+                                    prev?.focus();
+                                    prev?.select();
+                                  }
+                                }}
                                 placeholder="—"
                                 className={[
                                   "h-7 w-12 text-center text-xs font-mono px-1 py-0 rounded",
