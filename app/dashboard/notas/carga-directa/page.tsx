@@ -95,6 +95,7 @@ interface Materia {
   id: string;
   nombre: string;
   abreviatura: string;
+  codigo: string;
 }
 
 interface Estudiante {
@@ -370,6 +371,7 @@ export default function CargaDirectaPage() {
           id: d.id,
           nombre: data.nombre as string,
           abreviatura: makeAbrev(data.nombre as string),
+          codigo: data.codigo as string ?? "",
         };
         allMateriasForNivel.push(m);
         if (gradosAños.includes(mainSeccion.grado_año)) {
@@ -393,7 +395,7 @@ export default function CargaDirectaPage() {
               .filter((w) => w.length > 0 && !SKIP_WORDS.has(w.toLowerCase()))
               .map((w) => w[0].toUpperCase())
               .join("") || nombre.substring(0, 3).toUpperCase();
-            materiasData.push({ id: d.id, nombre, abreviatura });
+            materiasData.push({ id: d.id, nombre, abreviatura, codigo: data.codigo as string ?? "" });
           }
         });
       }
@@ -431,7 +433,7 @@ export default function CargaDirectaPage() {
               .filter((w) => w.length > 0 && !SKIP_WORDS.has(w.toLowerCase()))
               .map((w) => w[0].toUpperCase())
               .join("") || nombre.substring(0, 3).toUpperCase();
-            materiasData.push({ id: d.id, nombre, abreviatura });
+            materiasData.push({ id: d.id, nombre, abreviatura, codigo: data.codigo as string ?? "" });
           }
         });
 
@@ -452,7 +454,14 @@ export default function CargaDirectaPage() {
         }
       }
 
-      materiasData.sort((a, b) => a.nombre.localeCompare(b.nombre));
+      materiasData.sort((a, b) => {
+        const numA = parseInt(a.codigo, 10);
+        const numB = parseInt(b.codigo, 10);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        if (!isNaN(numA)) return -1;
+        if (!isNaN(numB)) return 1;
+        return a.codigo.localeCompare(b.codigo) || a.nombre.localeCompare(b.nombre);
+      });
       setMaterias(materiasData);
 
       if (materiasData.length === 0) {
