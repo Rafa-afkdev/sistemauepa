@@ -59,6 +59,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { collection, doc, getDoc, getDocs, orderBy, query, where } from "firebase/firestore";
 import { CrearEvaluacionDialog } from "./crear-evaluacion-dialog";
+import { VerDetallesEvaluacionDialog } from "./ver-detalles-evaluacion-dialog";
 
 import { db, deleteDocument } from "@/lib/data/firebase";
 import { showToast } from "nextjs-toast-notify";
@@ -102,6 +103,7 @@ export function MisEvaluaciones() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFiltro, setStatusFiltro] = useState<string>("todas");
 
+  const [evaluacionVer, setEvaluacionVer] = useState<EvaluacionConDetalles | null>(null);
   const [evaluacionEditar, setEvaluacionEditar] = useState<EvaluacionConDetalles | null>(null);
   const [evaluacionToDelete, setEvaluacionToDelete] = useState<EvaluacionConDetalles | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -783,7 +785,7 @@ export function MisEvaluaciones() {
                     <CardDescription>ID: {evaluacion.id_evaluacion}</CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => setEvaluacionVer(evaluacion)} title="Ver detalles">
                       <Eye className="h-4 w-4" />
                     </Button>
                     <Button
@@ -893,6 +895,12 @@ export function MisEvaluaciones() {
       >
         <div className="hidden"></div>
       </CrearEvaluacionDialog>
+
+      {/* Diálogo de Detalles */}
+      <VerDetallesEvaluacionDialog
+        evaluacion={evaluacionVer}
+        onClose={() => setEvaluacionVer(null)}
+      />
 
       {/* Diálogo de Confirmación de Eliminación */}
       <Dialog open={!!evaluacionToDelete} onOpenChange={(open) => !open && setEvaluacionToDelete(null)}>

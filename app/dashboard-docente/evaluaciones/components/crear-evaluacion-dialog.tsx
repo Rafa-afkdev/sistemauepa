@@ -79,8 +79,7 @@ export function CrearEvaluacionDialog({
   ]);
 
   const isEditing = !!evaluacionToEdit;
-  // TEMPORAL: Permitir edición completa incluso si está evaluada
-  const isEvaluada = false; // evaluacionToEdit?.status === "EVALUADA";
+  const isEvaluada = evaluacionToEdit?.status === "EVALUADA";
 
   // Efecto para abrir el modal si hay una evaluación para editar
   useEffect(() => {
@@ -154,22 +153,28 @@ export function CrearEvaluacionDialog({
     setLoadingLapsos(true);
     try {
       const lapsosRef = collection(db, "lapsos");
-      const q = query(lapsosRef, where("status", "==", "ACTIVO"));
-      const querySnapshot = await getDocs(q);
+      // Obtenemos todos los lapsos, no solo los activos
+      const querySnapshot = await getDocs(lapsosRef);
 
       const lapsosData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as LapsosEscolares[];
 
-      console.log("Lapsos activos encontrados:", lapsosData);
+      console.log("Lapsos encontrados:", lapsosData);
 
       setLapsosActivos(lapsosData);
 
-      // Si hay un lapso activo, seleccionarlo por defecto
-      if (lapsosData.length > 0) {
-        setLapsoId(lapsosData[0].id || "");
-        setPeriodoEscolarId(lapsosData[0].año_escolar);
+      // Si hay un lapso activo, seleccionarlo por defecto, sino el primero (solo si no es modo edición)
+      if (!isEditing) {
+        const lapsoActivo = lapsosData.find(l => l.status === "ACTIVO");
+        if (lapsoActivo) {
+          setLapsoId(lapsoActivo.id || "");
+          setPeriodoEscolarId(lapsoActivo.año_escolar);
+        } else if (lapsosData.length > 0) {
+          setLapsoId(lapsosData[0].id || "");
+          setPeriodoEscolarId(lapsosData[0].año_escolar);
+        }
       }
     } catch (error) {
       console.error("Error al cargar lapsos activos:", error);
@@ -608,8 +613,8 @@ export function CrearEvaluacionDialog({
             {isEvaluada
               ? "Esta evaluación ya fue calificada. Los campos están en modo lectura — solo puedes modificar el nombre."
               : isEditing
-                ? "Modifica los datos de la evaluación"
-                : "Programa una nueva evaluación para tus estudiantes"}
+              ? "Modifica los datos de la evaluación"
+              : "Programa una nueva evaluación para tus estudiantes"}
           </DialogDescription>
         </DialogHeader>
 
@@ -1021,7 +1026,7 @@ export function CrearEvaluacionDialog({
               className="bg-blue-900 hover:bg-blue-700"
               disabled={isSubmitting}
             >
-              <Plus />
+              {!isEditing && <Plus className="mr-2 h-4 w-4" />}
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
 
               {isSubmitting ? (isEditing ? "Actualizando..." : "Creando...") : (isEditing ? "Guardar Cambios" : "Crear Evaluación")}
