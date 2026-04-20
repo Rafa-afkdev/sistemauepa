@@ -62,6 +62,10 @@ export default function AsistenciaPage() {
   const [gradosAnios, setGradosAnios] = useState<string[]>([]);
   const [seccionesDisponibles, setSeccionesDisponibles] = useState<any[]>([]);
 
+  // Lapso date range
+  const [lapsoFechaInicio, setLapsoFechaInicio] = useState<Date | null>(null);
+  const [lapsoFechaFin, setLapsoFechaFin] = useState<Date | null>(null);
+
   // Schedule-based day validation
   const [allowedDays, setAllowedDays] = useState<number[]>([]); // Days (1-5) when teacher teaches this section/subject
   const [scheduleData, setScheduleData] = useState<any[]>([]); // Full schedule data
@@ -101,16 +105,37 @@ export default function AsistenciaPage() {
     cargarPeriodos();
   }, []);
 
-  // 2. Load Sections for Period
+  // 2. Load Sections AND Active Lapso for Period
   useEffect(() => {
     if (!periodoSeleccionado) return;
     const cargarSecciones = async () => {
       setLoading(true);
       try {
+        // Load sections
         const q = query(collection(db, "secciones"), where("id_periodo_escolar", "==", periodoSeleccionado));
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setAllSecciones(data);
+
+        // Load the globally active lapso (only one can be ACTIVO at a time system-wide)
+        const qLapso = query(
+          collection(db, "lapsos"),
+          where("status", "==", "ACTIVO")
+        );
+        const lapsoSnap = await getDocs(qLapso);
+        if (!lapsoSnap.empty) {
+          const lapsoData = lapsoSnap.docs[0].data();
+          // fecha_inicio and fecha_fin are stored as "yyyy-MM-dd" strings
+          const [iYear, iMonth, iDay] = lapsoData.fecha_inicio.split("-").map(Number);
+          const [fYear, fMonth, fDay] = lapsoData.fecha_fin.split("-").map(Number);
+          const inicio = new Date(iYear, iMonth - 1, iDay);
+          const fin = new Date(fYear, fMonth - 1, fDay);
+          setLapsoFechaInicio(inicio);
+          setLapsoFechaFin(fin);
+        } else {
+          setLapsoFechaInicio(null);
+          setLapsoFechaFin(null);
+        }
         
         // Reset
         setNivelEducativoSeleccionado("");
@@ -532,26 +557,40 @@ export default function AsistenciaPage() {
       }
   };
 
-  // Date validation: Only allow dates that match the teacher's schedule days
+  // Date validation: Only allow weekdays, within lapso range, within today, and on schedule days
   const disableDate = (date: Date) => {
-    if (allowedDays.length === 0) {
-      // If no schedule is set, disable all dates
+    // Always disable weekends
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
       return true;
     }
-    
-    // Get day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-    const dayOfWeek = date.getDay();
-    
-    // Convert to our format (1 = Monday, 2 = Tuesday, ..., 5 = Friday)
-    // Sunday (0) -> not allowed, Saturday (6) -> not allowed
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      return true; // Disable weekends
+
+    // Disable future dates — only today and past dates allowed
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (date > today) {
+      return true;
     }
-    
-    const ourDayFormat = dayOfWeek; // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri (matches our database)
-    
-    // Only enable if this day is in the allowed days
-    return !allowedDays.includes(ourDayFormat);
+
+    // Restrict to lapso range only if lapso is loaded
+    if (lapsoFechaInicio !== null && date < lapsoFechaInicio) {
+      return true;
+    }
+    if (lapsoFechaFin !== null) {
+      const endOfLapso = new Date(lapsoFechaFin);
+      endOfLapso.setHours(23, 59, 59, 999);
+      if (date > endOfLapso) {
+        return true;
+      }
+    }
+
+    // Restrict to schedule days only if schedule is loaded
+    if (allowedDays.length > 0) {
+      return !allowedDays.includes(dayOfWeek);
+    }
+
+    // No restrictions loaded yet — allow any weekday
+    return false;
   };
 
   return (

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
   DialogContent,
@@ -12,15 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { LoaderCircle, Calendar as CalendarIcon } from "lucide-react";
-import * as z from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { LapsosEscolares } from "@/interfaces/lapsos.interface";
-import { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
-import { Timestamp, collection, query, where, getDocs, orderBy } from "firebase/firestore";
-import { addDocument, getCollection, updateDocument, db } from "@/lib/data/firebase";
-import { showToast } from "nextjs-toast-notify";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -30,11 +22,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { LapsosEscolares } from "@/interfaces/lapsos.interface";
+import { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
+import { addDocument, db, getCollection, updateDocument } from "@/lib/data/firebase";
+import { cn } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import { Timestamp, collection, getDocs, orderBy, query, where } from "firebase/firestore";
+import { Calendar as CalendarIcon, LoaderCircle } from "lucide-react";
+import { showToast } from "nextjs-toast-notify";
+import React, { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 
 interface CreateLapsoEscolarProps {
   children: React.ReactNode;
@@ -64,23 +64,23 @@ export function CreateUpdateLapsoEscolar({
     resolver: zodResolver(formSchema),
     defaultValues: lapsoToUpdate
       ? {
-          lapso: lapsoToUpdate.lapso,
-          año_escolar: lapsoToUpdate.año_escolar,
-          status: lapsoToUpdate.status,
-          fecha_inicio: lapsoToUpdate.fecha_inicio
-            ? new Date(lapsoToUpdate.fecha_inicio)
-            : undefined,
-          fecha_fin: lapsoToUpdate.fecha_fin
-            ? new Date(lapsoToUpdate.fecha_fin)
-            : undefined,
-        }
+        lapso: lapsoToUpdate.lapso,
+        año_escolar: lapsoToUpdate.año_escolar,
+        status: lapsoToUpdate.status,
+        fecha_inicio: lapsoToUpdate.fecha_inicio
+          ? new Date(lapsoToUpdate.fecha_inicio)
+          : undefined,
+        fecha_fin: lapsoToUpdate.fecha_fin
+          ? new Date(lapsoToUpdate.fecha_fin)
+          : undefined,
+      }
       : {
-          lapso: "",
-          año_escolar: "",
-          status: "ACTIVO",
-          fecha_inicio: undefined,
-          fecha_fin: undefined,
-        },
+        lapso: "",
+        año_escolar: "",
+        status: "ACTIVO",
+        fecha_inicio: undefined,
+        fecha_fin: undefined,
+      },
   });
 
   const { handleSubmit, formState, setValue, watch, reset } = form;
@@ -93,13 +93,13 @@ export function CreateUpdateLapsoEscolar({
         const res = await getCollection("periodos_escolares", [
           orderBy("periodo", "desc")
         ]) as PeriodosEscolares[];
-        
+
         const sortedPeriodos = res.sort((a, b) => {
           if (a.status === 'ACTIVO' && b.status !== 'ACTIVO') return -1;
           if (b.status === 'ACTIVO' && a.status !== 'ACTIVO') return 1;
           return a.periodo.localeCompare(b.periodo);
         });
-        
+
         setPeriodosEscolares(sortedPeriodos);
       } catch (error) {
         console.error(error);

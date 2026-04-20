@@ -79,7 +79,8 @@ export function CrearEvaluacionDialog({
   ]);
 
   const isEditing = !!evaluacionToEdit;
-  const isEvaluada = evaluacionToEdit?.status === "EVALUADA";
+  // TEMPORAL: Permitir edición completa incluso si está evaluada
+  const isEvaluada = false; // evaluacionToEdit?.status === "EVALUADA";
 
   // Efecto para abrir el modal si hay una evaluación para editar
   useEffect(() => {
@@ -355,84 +356,84 @@ export function CrearEvaluacionDialog({
           });
           showToast.success("Nombre de la evaluación actualizado exitosamente");
         } else {
-        const criteriosFinales = tieneCriterios
-          ? criterios
-          : [{ nro_criterio: "1", nombre: "Criterio Único", ponderacion: 20 }];
+          const criteriosFinales = tieneCriterios
+            ? criterios
+            : [{ nro_criterio: "1", nombre: "Criterio Único", ponderacion: 20 }];
 
-        // Validar duplicidad si cambió la sección, materia o fecha
-        const cambioSeccion = seccionesIds[0] !== evaluacionToEdit.seccion_id;
-        const cambioMateria = materiaId !== evaluacionToEdit.materia_id;
-        const cambioFecha = format(fecha!, "yyyy-MM-dd") !== evaluacionToEdit.fecha;
+          // Validar duplicidad si cambió la sección, materia o fecha
+          const cambioSeccion = seccionesIds[0] !== evaluacionToEdit.seccion_id;
+          const cambioMateria = materiaId !== evaluacionToEdit.materia_id;
+          const cambioFecha = format(fecha!, "yyyy-MM-dd") !== evaluacionToEdit.fecha;
 
-        if (cambioSeccion || cambioMateria || cambioFecha) {
-          const evaluacionesRef = collection(db, "evaluaciones");
-          const qDuplicados = query(
-            evaluacionesRef,
-            where("seccion_id", "==", seccionesIds[0]),
-            where("materia_id", "==", materiaId),
-            where("fecha", "==", format(fecha!, "yyyy-MM-dd"))
-          );
+          if (cambioSeccion || cambioMateria || cambioFecha) {
+            const evaluacionesRef = collection(db, "evaluaciones");
+            const qDuplicados = query(
+              evaluacionesRef,
+              where("seccion_id", "==", seccionesIds[0]),
+              where("materia_id", "==", materiaId),
+              where("fecha", "==", format(fecha!, "yyyy-MM-dd"))
+            );
 
-          const duplicadosSnapshot = await getDocs(qDuplicados);
-          
-          // Filtrar para excluir la evaluación actual
-          const duplicados = duplicadosSnapshot.docs.filter(doc => doc.id !== evaluacionToEdit.id);
+            const duplicadosSnapshot = await getDocs(qDuplicados);
 
-          if (duplicados.length > 0) {
-            const seccionNombre = secciones.find(s => s.seccion_id === seccionesIds[0]);
-            const materiaNombre = materias.find(m => m.materia_id === materiaId);
-            const nombreCorto = seccionNombre 
-              ? `${seccionNombre.grado_año} "${seccionNombre.seccion}"`
-              : `Sección ${seccionesIds[0]}`;
-            
-            showToast.error(`Ya existe una evaluación de ${materiaNombre?.materia_nombre || 'esta materia'} para ${nombreCorto} en esta fecha.`);
-            setIsSubmitting(false);
-            return;
-          }
-        }
+            // Filtrar para excluir la evaluación actual
+            const duplicados = duplicadosSnapshot.docs.filter(doc => doc.id !== evaluacionToEdit.id);
 
-        const evaluacionData = {
-          nombre_evaluacion: nombreEvaluacion,
-          tipo_evaluacion: tipoEvaluacion,
-          lapsop_id: lapsoId,
-          materia_id: materiaId,
-          seccion_id: seccionesIds[0] || "", // Solo una sección en modo edición
-          periodo_escolar_id: periodoEscolarId,
-          criterios: criteriosFinales,
-          porcentaje: porcentaje,
-          fecha: format(fecha!, "yyyy-MM-dd"),
-          status: "POR EVALUAR",
-          updatedAt: serverTimestamp(),
-        };
+            if (duplicados.length > 0) {
+              const seccionNombre = secciones.find(s => s.seccion_id === seccionesIds[0]);
+              const materiaNombre = materias.find(m => m.materia_id === materiaId);
+              const nombreCorto = seccionNombre
+                ? `${seccionNombre.grado_año} "${seccionNombre.seccion}"`
+                : `Sección ${seccionesIds[0]}`;
 
-        // GUARDAR HISTORIAL DE CAMBIOS
-        try {
-          const historialData = {
-            evaluacion_id: evaluacionToEdit.id,
-            docente_id: user?.uid,
-            fecha_cambio: new Date(),
-            accion: "EDICION",
-            datos_previos: {
-              nombre_evaluacion: evaluacionToEdit.nombre_evaluacion,
-              tipo_evaluacion: evaluacionToEdit.tipo_evaluacion,
-              fecha: evaluacionToEdit.fecha,
-              seccion_id: evaluacionToEdit.seccion_id,
-              materia_id: evaluacionToEdit.materia_id,
-              criterios: evaluacionToEdit.criterios,
-              nota_definitiva: evaluacionToEdit.nota_definitiva
+              showToast.error(`Ya existe una evaluación de ${materiaNombre?.materia_nombre || 'esta materia'} para ${nombreCorto} en esta fecha.`);
+              setIsSubmitting(false);
+              return;
             }
-          };
-          await addDocument("historial_cambios_evaluaciones", historialData);
-          console.log("Historial guardado correctamente");
-        } catch (error) {
-          console.error("Error al guardar historial de cambios:", error);
-          // No detenemos el flujo principal si falla el historial
-        }
+          }
 
-        await updateDocument(`evaluaciones/${evaluacionToEdit.id}`, evaluacionData);
-        showToast.success("Evaluación actualizada exitosamente");
+          const evaluacionData = {
+            nombre_evaluacion: nombreEvaluacion,
+            tipo_evaluacion: tipoEvaluacion,
+            lapsop_id: lapsoId,
+            materia_id: materiaId,
+            seccion_id: seccionesIds[0] || "", // Solo una sección en modo edición
+            periodo_escolar_id: periodoEscolarId,
+            criterios: criteriosFinales,
+            porcentaje: porcentaje,
+            fecha: format(fecha!, "yyyy-MM-dd"),
+            status: "POR EVALUAR",
+            updatedAt: serverTimestamp(),
+          };
+
+          // GUARDAR HISTORIAL DE CAMBIOS
+          try {
+            const historialData = {
+              evaluacion_id: evaluacionToEdit.id,
+              docente_id: user?.uid,
+              fecha_cambio: new Date(),
+              accion: "EDICION",
+              datos_previos: {
+                nombre_evaluacion: evaluacionToEdit.nombre_evaluacion,
+                tipo_evaluacion: evaluacionToEdit.tipo_evaluacion,
+                fecha: evaluacionToEdit.fecha,
+                seccion_id: evaluacionToEdit.seccion_id,
+                materia_id: evaluacionToEdit.materia_id,
+                criterios: evaluacionToEdit.criterios,
+                nota_definitiva: evaluacionToEdit.nota_definitiva
+              }
+            };
+            await addDocument("historial_cambios_evaluaciones", historialData);
+            console.log("Historial guardado correctamente");
+          } catch (error) {
+            console.error("Error al guardar historial de cambios:", error);
+            // No detenemos el flujo principal si falla el historial
+          }
+
+          await updateDocument(`evaluaciones/${evaluacionToEdit.id}`, evaluacionData);
+          showToast.success("Evaluación actualizada exitosamente");
         } // fin else !isEvaluada
-      } 
+      }
       // MODO CREACIÓN: Crear una evaluación por cada sección seleccionada
       else {
         const criteriosFinales = tieneCriterios
@@ -450,7 +451,7 @@ export function CrearEvaluacionDialog({
         // Crear array de promesas para procesar todas las secciones de manera asíncrona en paralelo
         const promesasCreacion = seccionesIds.map(async (seccionId, index) => {
           console.log(`📝 Procesando sección: ${seccionId}`);
-          
+
           // Validar duplicidad para esta sección específica + materia + fecha
           const qDuplicados = query(
             evaluacionesRef,
@@ -464,10 +465,10 @@ export function CrearEvaluacionDialog({
           if (duplicadosSnapshot.docs.length > 0) {
             const seccionNombre = secciones.find(s => s.seccion_id === seccionId);
             const materiaNombre = materias.find(m => m.materia_id === materiaId);
-            const nombreCorto = seccionNombre 
+            const nombreCorto = seccionNombre
               ? `${seccionNombre.grado_año} "${seccionNombre.seccion}"`
               : `Sección ${seccionId}`;
-            
+
             console.log(`⚠️ DUPLICADO encontrado para ${nombreCorto} - ${materiaNombre?.materia_nombre}`);
             throw new Error(`Duplicado: Ya existe evaluación para ${nombreCorto} en esta fecha.`);
           }
@@ -605,12 +606,20 @@ export function CrearEvaluacionDialog({
           <DialogTitle>{isEvaluada ? "Editar Nombre de Evaluación" : isEditing ? "Editar Evaluación" : "Crear Nueva Evaluación"}</DialogTitle>
           <DialogDescription>
             {isEvaluada
-              ? "Esta evaluación ya fue calificada. Solo puedes modificar el nombre."
+              ? "Esta evaluación ya fue calificada. Los campos están en modo lectura — solo puedes modificar el nombre."
               : isEditing
-              ? "Modifica los datos de la evaluación"
-              : "Programa una nueva evaluación para tus estudiantes"}
+                ? "Modifica los datos de la evaluación"
+                : "Programa una nueva evaluación para tus estudiantes"}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Banner informativo en modo lectura */}
+        {isEvaluada && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-3 text-sm text-amber-800 dark:text-amber-300">
+            <span className="text-base">⚠️</span>
+            <span>Evaluación ya calificada. La información se muestra en modo <strong>solo lectura</strong>. Solo puedes actualizar el nombre.</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Nombre de la Evaluación */}
@@ -628,7 +637,6 @@ export function CrearEvaluacionDialog({
           </div>
 
           {/* Tipo y Lapso */}
-          {!isEvaluada && (
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="tipoEvaluacion">
@@ -639,7 +647,8 @@ export function CrearEvaluacionDialog({
                 placeholder="Ej: Examen, Quiz, Tarea, Proyecto..."
                 value={tipoEvaluacion}
                 onChange={(e) => setTipoEvaluacion(e.target.value)}
-                required
+                required={!isEvaluada}
+                disabled={isEvaluada}
               />
             </div>
 
@@ -656,7 +665,7 @@ export function CrearEvaluacionDialog({
                     setPeriodoEscolarId(lapsoSeleccionado.año_escolar);
                   }
                 }}
-                disabled={loadingLapsos || lapsosActivos.length === 0}
+                disabled={loadingLapsos || lapsosActivos.length === 0 || isEvaluada}
               >
                 <SelectTrigger>
                   <SelectValue placeholder={
@@ -677,10 +686,8 @@ export function CrearEvaluacionDialog({
               </Select>
             </div>
           </div>
-          )}
 
           {/* Materia y Sección */}
-          {!isEvaluada && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="materiaId">
@@ -692,7 +699,7 @@ export function CrearEvaluacionDialog({
                   setMateriaId(value);
                   setSeccionesIds([]); // Limpiar secciones al cambiar materia
                 }}
-                disabled={loadingMaterias || materias.length === 0}
+                disabled={loadingMaterias || materias.length === 0 || isEvaluada}
               >
                 <SelectTrigger>
                   <SelectValue placeholder={
@@ -722,7 +729,7 @@ export function CrearEvaluacionDialog({
                 <Select
                   value={seccionesIds[0] || ""}
                   onValueChange={(value) => setSeccionesIds([value])}
-                  disabled={loadingSecciones || secciones.length === 0}
+                  disabled={loadingSecciones || secciones.length === 0 || isEvaluada}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={
@@ -818,10 +825,8 @@ export function CrearEvaluacionDialog({
               )}
             </div>
           </div>
-          )}
 
           {/* Fecha */}
-          {!isEvaluada && (
           <div className="space-y-2">
             <Label>
               Fecha <span className="text-red-500">*</span>
@@ -834,6 +839,7 @@ export function CrearEvaluacionDialog({
                     "w-full justify-start text-left font-normal",
                     !fecha && "text-muted-foreground"
                   )}
+                  disabled={isEvaluada}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {fecha ? (
@@ -874,10 +880,8 @@ export function CrearEvaluacionDialog({
               </PopoverContent>
             </Popover>
           </div>
-          )}
 
           {/* Porcentaje de la Evaluación */}
-          {!isEvaluada && (
           <div className="space-y-2">
             <Label htmlFor="porcentaje">
               Porcentaje de la Evaluación <span className="text-red-500">*</span>
@@ -892,7 +896,8 @@ export function CrearEvaluacionDialog({
                 placeholder="Ej: 30"
                 value={porcentaje || ""}
                 onChange={(e) => setPorcentaje(Number(e.target.value))}
-                required
+                required={!isEvaluada}
+                disabled={isEvaluada}
                 className="flex-1"
               />
               <span className="text-sm text-muted-foreground">%</span>
@@ -901,18 +906,17 @@ export function CrearEvaluacionDialog({
               Indica el porcentaje que representa esta evaluación en el lapso (1-100%)
             </p>
           </div>
-          )}
 
           {/* Criterios de Evaluación */}
-          {!isEvaluada && (
           <div className="space-y-3">
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="tieneCriterios"
                 checked={tieneCriterios}
                 onCheckedChange={(checked) => setTieneCriterios(checked as boolean)}
+                disabled={isEvaluada}
               />
-              <Label htmlFor="tieneCriterios" className="cursor-pointer">
+              <Label htmlFor="tieneCriterios" className={isEvaluada ? "cursor-default opacity-70" : "cursor-pointer"}>
                 Esta evaluación requiere de criterios?
               </Label>
             </div>
@@ -933,16 +937,18 @@ export function CrearEvaluacionDialog({
                       Máximo 6 criterios. La suma debe ser 20 puntos.
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={agregarCriterio}
-                    disabled={criterios.length >= 6}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Agregar Criterio {criterios.length}/6
-                  </Button>
+                  {!isEvaluada && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={agregarCriterio}
+                      disabled={criterios.length >= 6}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Agregar Criterio {criterios.length}/6
+                    </Button>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -955,7 +961,8 @@ export function CrearEvaluacionDialog({
                             placeholder="Ej: Funciones Lineales"
                             value={criterio.nombre}
                             onChange={(e) => actualizarCriterio(index, "nombre", e.target.value)}
-                            required
+                            required={!isEvaluada}
+                            disabled={isEvaluada}
                           />
                         </div>
                         <div className="space-y-1">
@@ -968,11 +975,12 @@ export function CrearEvaluacionDialog({
                             placeholder="0"
                             value={criterio.ponderacion || ""}
                             onChange={(e) => actualizarCriterio(index, "ponderacion", e.target.value)}
-                            required
+                            required={!isEvaluada}
+                            disabled={isEvaluada}
                           />
                         </div>
                       </div>
-                      {criterios.length > 1 && (
+                      {criterios.length > 1 && !isEvaluada && (
                         <Button
                           type="button"
                           variant="ghost"
@@ -995,7 +1003,6 @@ export function CrearEvaluacionDialog({
               </>
             )}
           </div>
-          )}
 
           <DialogFooter>
             <Button

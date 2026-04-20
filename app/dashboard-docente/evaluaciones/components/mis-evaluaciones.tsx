@@ -181,8 +181,7 @@ export function MisEvaluaciones() {
       const lapsosRef = collection(db, 'lapsos');
       const q = query(
         lapsosRef,
-        where('año_escolar', '==', periodoId),
-        where('status', '==', 'ACTIVO')
+        where('año_escolar', '==', periodoId)
       );
       const snapshot = await getDocs(q);
       const lapsosData = snapshot.docs.map(docSnap => ({
