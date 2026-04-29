@@ -321,12 +321,10 @@ export default function SubirNotas() {
         [criterioNumero]: notaValidada,
       };
 
-      // Calcular nota definitiva (suma simple de todas las notas)
+      // Calcular nota definitiva (suma directa de todas las notas por criterio)
       let notaDefinitiva = 0;
       evaluacion.criterios.forEach((crit) => {
-        const notaCriterio = nuevasNotasCriterios[crit.nro_criterio] || 0;
-        const porcentajeCriterio = crit.ponderacion / evaluacion.criterios.reduce((sum, c) => sum + c.ponderacion, 0);
-        notaDefinitiva += notaCriterio * porcentajeCriterio;
+        notaDefinitiva += nuevasNotasCriterios[crit.nro_criterio] || 0;
       });
 
       return {
