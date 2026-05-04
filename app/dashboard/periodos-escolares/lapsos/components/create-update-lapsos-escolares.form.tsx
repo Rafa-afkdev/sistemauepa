@@ -68,10 +68,10 @@ export function CreateUpdateLapsoEscolar({
         año_escolar: lapsoToUpdate.año_escolar,
         status: lapsoToUpdate.status,
         fecha_inicio: lapsoToUpdate.fecha_inicio
-          ? new Date(lapsoToUpdate.fecha_inicio)
+          ? new Date(lapsoToUpdate.fecha_inicio + "T12:00:00")
           : undefined,
         fecha_fin: lapsoToUpdate.fecha_fin
-          ? new Date(lapsoToUpdate.fecha_fin)
+          ? new Date(lapsoToUpdate.fecha_fin + "T12:00:00")
           : undefined,
       }
       : {
@@ -116,10 +116,10 @@ export function CreateUpdateLapsoEscolar({
         año_escolar: lapsoToUpdate.año_escolar,
         status: lapsoToUpdate.status,
         fecha_inicio: lapsoToUpdate.fecha_inicio
-          ? new Date(lapsoToUpdate.fecha_inicio)
+          ? new Date(lapsoToUpdate.fecha_inicio + "T12:00:00")
           : undefined,
         fecha_fin: lapsoToUpdate.fecha_fin
-          ? new Date(lapsoToUpdate.fecha_fin)
+          ? new Date(lapsoToUpdate.fecha_fin + "T12:00:00")
           : undefined,
       });
     } else if (open && !lapsoToUpdate) {

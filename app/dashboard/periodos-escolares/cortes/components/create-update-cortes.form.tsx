@@ -73,10 +73,10 @@ export function CreateUpdateCorte({
           lapso_id: corteToUpdate.lapso_id,
           status: corteToUpdate.status,
           fecha_inicio: corteToUpdate.fecha_inicio
-            ? new Date(corteToUpdate.fecha_inicio)
+            ? new Date(corteToUpdate.fecha_inicio + "T12:00:00")
             : undefined,
           fecha_fin: corteToUpdate.fecha_fin
-            ? new Date(corteToUpdate.fecha_fin)
+            ? new Date(corteToUpdate.fecha_fin + "T12:00:00")
             : undefined,
         }
       : {
@@ -153,10 +153,10 @@ export function CreateUpdateCorte({
         lapso_id: corteToUpdate.lapso_id,
         status: corteToUpdate.status,
         fecha_inicio: corteToUpdate.fecha_inicio
-          ? new Date(corteToUpdate.fecha_inicio)
+          ? new Date(corteToUpdate.fecha_inicio + "T12:00:00")
           : undefined,
         fecha_fin: corteToUpdate.fecha_fin
-          ? new Date(corteToUpdate.fecha_fin)
+          ? new Date(corteToUpdate.fecha_fin + "T12:00:00")
           : undefined,
       });
     } else if (open && !corteToUpdate) {
