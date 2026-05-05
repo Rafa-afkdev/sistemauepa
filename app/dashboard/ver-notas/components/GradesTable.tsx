@@ -66,7 +66,13 @@ export function GradesTable({ notas, evaluacion, onEdit }: GradesTableProps) {
         </TableHeader>
         <TableBody>
           {notasOrdenadas.map((nota, index) => {
-            const notaAprobada = nota.nota_definitiva >= 10;
+            // Calcular suma dinámicamente para solucionar errores de cálculos previos en BD
+            const notaCalculada = nota.notas_criterios?.reduce(
+              (sum, nc) => sum + (nc.nota_obtenida || 0),
+              0
+            ) ?? 0;
+            const notaAprobada = notaCalculada >= 10;
+
             return (
               <TableRow key={nota.id || nota.estudiante_id}>
                 <TableCell>{index + 1}</TableCell>
@@ -91,7 +97,7 @@ export function GradesTable({ notas, evaluacion, onEdit }: GradesTableProps) {
                     notaAprobada ? "text-green-600" : "text-red-600"
                   }`}
                 >
-                  {nota.nota_definitiva.toFixed(2)}
+                  {notaCalculada.toFixed(2)}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {nota.observacion || "-"}

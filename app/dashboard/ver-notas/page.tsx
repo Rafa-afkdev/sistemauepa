@@ -399,7 +399,10 @@ export default function VerNotas() {
   const calcularEstadisticas = (): Estadisticas | null => {
     if (notasFiltradas.length === 0) return null;
 
-    const notasDefinitivas = notasFiltradas.map((n) => n.nota_definitiva);
+    const notasDefinitivas = notasFiltradas.map((n) => {
+      const notaCalculada = n.notas_criterios?.reduce((sum, nc) => sum + (nc.nota_obtenida || 0), 0) ?? 0;
+      return notaCalculada;
+    });
     const promedio = notasDefinitivas.reduce((sum, nota) => sum + nota, 0) / notasDefinitivas.length;
     const notaMaxima = Math.max(...notasDefinitivas);
     const notaMinima = Math.min(...notasDefinitivas);
@@ -452,8 +455,7 @@ export default function VerNotas() {
       evaluacion.criterios.forEach((criterio) => {
         const notaCriterio = nuevasNotasCriterios.find(nc => nc.criterio_numero === criterio.nro_criterio);
         const valor = notaCriterio?.nota_obtenida || 0;
-        const porcentaje = criterio.ponderacion / evaluacion.criterios.reduce((sum, c) => sum + c.ponderacion, 0);
-        nuevaNotaDefinitiva += valor * porcentaje;
+        nuevaNotaDefinitiva += valor;
       });
 
       if (notaId && notaId !== "") {
