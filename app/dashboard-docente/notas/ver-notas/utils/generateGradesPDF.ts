@@ -39,29 +39,32 @@ export async function generarReportePDF(
   const logo2Img = await pdfDoc.embedPng(logo2Bytes);
   const logo3Img = await pdfDoc.embedPng(logo3Bytes);
 
-  // Dimensiones de página A4 HORIZONTAL (landscape)
-  const pageWidth = 841.89;   // A4 horizontal width
-  const pageHeight = 595.28;  // A4 horizontal height
-  const margin = 30;  // Reduced margin for more space
-  const lineHeight = 18;  // Increased line height
-  const bottomMargin = 40;  // Reduced bottom margin
+  // Dimensiones de página A4 VERTICAL (portrait) para ahorrar hojas
+  const pageWidth = 595.28;   // A4 vertical width
+  const pageHeight = 841.89;  // A4 vertical height
+  const margin = 20;  // Margen reducido para maximizar espacio
+  const lineHeight = 16;  // Line height ligeramente reducido para meter más filas
+  const bottomMargin = 40;
 
   // Definir columnas de la tabla para usar TODO el ancho disponible
-  const anchoDisponible = pageWidth - (margin * 2);  // Total available width
-  const colNumero = 40;
-  const colCedula = 85;
-  const colNotaFinal = 70;
+  const anchoDisponible = pageWidth - (margin * 2);
+  const colNumero = 20;
+  const colCedula = 50;
+  const colNotaFinal = 35;
   
-  // Calcular dinámicamente el ancho de cada criterio con un máximo de 80px
-  const numCriterios = evaluacion.criterios.length;
-  const maxColCriterio = 80;
-  const colCriterio = Math.min(maxColCriterio, (anchoDisponible - colNumero - colCedula - 180 - colNotaFinal) / numCriterios);
+  // Proteger la longitud de criterios por si viene undefined o vacío
+  const criterios = evaluacion.criterios || [];
+  const numCriterios = criterios.length;
+  
+  // Calcular dinámicamente el ancho de cada criterio con un máximo de 45px en vertical
+  const maxColCriterio = 45;
+  const espacioParaCriterios = anchoDisponible - colNumero - colCedula - 130 - colNotaFinal; // 130px min para nombre
+  const colCriterio = numCriterios > 0 ? Math.min(maxColCriterio, espacioParaCriterios / numCriterios) : 0;
   const totalCriterios = colCriterio * numCriterios;
   
-  // El espacio restante va a la columna de nombre (mínimo 180px)
+  // El espacio restante va a la columna de nombre (mínimo 130px)
   const colNombre = anchoDisponible - colNumero - colCedula - totalCriterios - colNotaFinal;
-  
-  const anchoTotal = anchoDisponible;  // Use full width
+  const anchoTotal = anchoDisponible;
 
   let currentPage: PDFPage | null = null;
   let currentY = 0;
@@ -72,26 +75,26 @@ export async function generarReportePDF(
     const page = pdfDoc.addPage([pageWidth, pageHeight]);
     const { width, height } = page.getSize();
 
-    // Dibujar logos
-    const yLogos = height - 110;
-    page.drawImage(logo1Img, { x: 60, y: yLogos, width: 75, height: 65 });
-    page.drawImage(logo2Img, { x: width / 2 - 95, y: yLogos, width: 180, height: 45 });
-    page.drawImage(logo3Img, { x: width - 60 - 60, y: yLogos, width: 60, height: 60 });
+    // Dibujar logos ajustados al nuevo ancho
+    const yLogos = height - 80;
+    page.drawImage(logo1Img, { x: margin, y: yLogos, width: 60, height: 50 });
+    page.drawImage(logo2Img, { x: width / 2 - 75, y: yLogos + 5, width: 150, height: 35 });
+    page.drawImage(logo3Img, { x: width - margin - 50, y: yLogos, width: 50, height: 50 });
 
-    // Título principal - sin azul
+    // Título principal
     const titulo = "REPORTE DE NOTAS";
-    const tituloWidth = helveticaBold.widthOfTextAtSize(titulo, 22);
+    const tituloWidth = helveticaBold.widthOfTextAtSize(titulo, 18);
     page.drawText(titulo, {
       x: width / 2 - tituloWidth / 2,
-      y: height - 135,
-      size: 22,  // Increased size
+      y: height - 105,
+      size: 18,
       font: helveticaBold,
-      color: rgb(0, 0, 0),  // Changed to black
+      color: rgb(0, 0, 0),
     });
 
     // Información de la evaluación
-    let infoY = height - 160;
-    const infoSize = 10;  // Increased from 9
+    let infoY = height - 130;
+    const infoSize = 9;
     
     page.drawText(`Evaluación: ${evaluacion.nombre_evaluacion || ""}`, {
       x: margin,
@@ -151,152 +154,112 @@ export async function generarReportePDF(
     });
 
     // Cabecera de la tabla
-    const headerY = height - 200;
+    const headerY = height - 170;
 
-    // Fondo del encabezado - gris claro en lugar de azul
+    // Fondo del encabezado
     page.drawRectangle({
       x: margin,
-      y: headerY - 28,
+      y: headerY - 24,
       width: anchoTotal,
-      height: 28,  // Increased height
-      color: rgb(0.92, 0.92, 0.92), // Light gray instead of blue
+      height: 24,
+      color: rgb(0.92, 0.92, 0.92),
     });
 
-    // Línea superior de la tabla (más gruesa)
+    // Líneas
     page.drawLine({
       start: { x: margin, y: headerY },
       end: { x: margin + anchoTotal, y: headerY },
-      thickness: 2,
-      color: rgb(0, 0, 0),  // Black instead of blue
+      thickness: 1.5,
+      color: rgb(0, 0, 0),
     });
-
-    // Línea inferior del encabezado (más gruesa)
     page.drawLine({
-      start: { x: margin, y: headerY - 28 },
-      end: { x: margin + anchoTotal, y: headerY - 28 },
-      thickness: 2,
-      color: rgb(0, 0, 0),  // Black instead of blue
+      start: { x: margin, y: headerY - 24 },
+      end: { x: margin + anchoTotal, y: headerY - 24 },
+      thickness: 1.5,
+      color: rgb(0, 0, 0),
     });
 
     // Textos del encabezado
     let xPos = margin;
     
-    // N°
     page.drawText("N°", {
-      x: xPos + colNumero / 2 - 6,
-      y: headerY - 19,
-      size: 11,  // Increased from 10
+      x: xPos + colNumero / 2 - 5,
+      y: headerY - 16,
+      size: 9,
       font: helveticaBold,
-      color: rgb(0, 0, 0),  // Black instead of blue
+      color: rgb(0, 0, 0),
     });
     xPos += colNumero;
 
-    // CÉDULA
     page.drawText("CÉDULA", {
-      x: xPos + colCedula / 2 - 22,
-      y: headerY - 19,
-      size: 11,  // Increased
+      x: xPos + colCedula / 2 - 18,
+      y: headerY - 16,
+      size: 9,
       font: helveticaBold,
-      color: rgb(0, 0, 0),  // Black
+      color: rgb(0, 0, 0),
     });
     xPos += colCedula;
 
-    // APELLIDOS Y NOMBRES
     page.drawText("APELLIDOS Y NOMBRES", {
-      x: xPos + 10,
-      y: headerY - 19,
-      size: 11,  // Increased
+      x: xPos + 5,
+      y: headerY - 16,
+      size: 9,
       font: helveticaBold,
-      color: rgb(0, 0, 0),  // Black
+      color: rgb(0, 0, 0),
     });
     xPos += colNombre;
 
-    // Criterios (nombres completos o casi completos)
-    evaluacion.criterios.forEach((criterio) => {
-      const maxChars = Math.floor(colCriterio / 5);  // Dynamic based on column width
-      const criterioText = criterio.nombre.length > maxChars ? 
-        criterio.nombre.substring(0, maxChars) : criterio.nombre;
-      const criterioWidth = helveticaBold.widthOfTextAtSize(criterioText, 9);
+    // Criterios (truncados para que quepan en vertical)
+    criterios.forEach((criterio) => {
+      // Ajuste muy agresivo del texto para el encabezado en modo vertical
+      const maxChars = Math.max(1, Math.floor(colCriterio / 4.5));
+      let criterioText = criterio.nombre;
+      if (criterioText.length > maxChars) {
+        criterioText = criterioText.substring(0, maxChars) + ".";
+      }
+      
+      const criterioWidth = helveticaBold.widthOfTextAtSize(criterioText, 7);
       page.drawText(criterioText, {
-        x: xPos + colCriterio / 2 - criterioWidth / 2,
-        y: headerY - 19,
-        size: 9,  // Increased
+        x: xPos + colCriterio / 2 - (criterioWidth / 2),
+        y: headerY - 15,
+        size: 7,
         font: helveticaBold,
-        color: rgb(0, 0, 0),  // Black
+        color: rgb(0, 0, 0),
       });
       xPos += colCriterio;
     });
 
-    // FINAL
     page.drawText("FINAL", {
-      x: xPos + colNotaFinal / 2 - 14,
-      y: headerY - 19,
-      size: 11,  // Increased
+      x: xPos + colNotaFinal / 2 - 12,
+      y: headerY - 16,
+      size: 9,
       font: helveticaBold,
-      color: rgb(0, 0, 0),  // Black
+      color: rgb(0, 0, 0),
     });
 
-    return { page, currentY: headerY - 28, pageStartY: headerY };
+    return { page, currentY: headerY - 24, pageStartY: headerY };
   };
 
   // Función para dibujar líneas verticales
   const drawVerticalLines = (targetPage: PDFPage, startY: number, endY: number) => {
     let xPos = margin;
-
-    // Línea izquierda
-    targetPage.drawLine({
-      start: { x: xPos, y: startY },
-      end: { x: xPos, y: endY },
-      thickness: 1,
-      color: rgb(0, 0, 0),
-    });
-
-    // Después de N°
-    xPos += colNumero;
-    targetPage.drawLine({
-      start: { x: xPos, y: startY },
-      end: { x: xPos, y: endY },
-      thickness: 1,
-      color: rgb(0, 0, 0),
-    });
-
-    // Después de Cédula
-    xPos += colCedula;
-    targetPage.drawLine({
-      start: { x: xPos, y: startY },
-      end: { x: xPos, y: endY },
-      thickness: 1,
-      color: rgb(0, 0, 0),
-    });
-
-    // Después de Nombre
-    xPos += colNombre;
-    targetPage.drawLine({
-      start: { x: xPos, y: startY },
-      end: { x: xPos, y: endY },
-      thickness: 1,
-      color: rgb(0, 0, 0),
-    });
-
-    // Después de cada criterio
-    for (let i = 0; i < numCriterios; i++) {
-      xPos += colCriterio;
+    const drawL = (x: number) => {
       targetPage.drawLine({
-        start: { x: xPos, y: startY },
-        end: { x: xPos, y: endY },
-        thickness: 1,
+        start: { x, y: startY },
+        end: { x, y: endY },
+        thickness: 0.5,
         color: rgb(0, 0, 0),
       });
-    }
+    };
 
-    // Línea derecha (después de FINAL)
-    xPos += colNotaFinal;
-    targetPage.drawLine({
-      start: { x: xPos, y: startY },
-      end: { x: xPos, y: endY },
-      thickness: 1,
-      color: rgb(0, 0, 0),
-    });
+    drawL(xPos);
+    xPos += colNumero; drawL(xPos);
+    xPos += colCedula; drawL(xPos);
+    xPos += colNombre; drawL(xPos);
+    for (let i = 0; i < numCriterios; i++) {
+      xPos += colCriterio; drawL(xPos);
+    }
+    xPos += colNotaFinal; drawL(xPos);
   };
 
   // Crear primera página
@@ -328,73 +291,73 @@ export async function generarReportePDF(
 
     // N°
     const numeroText = `${index + 1}`;
-    const numeroWidth = helvetica.widthOfTextAtSize(numeroText, 10);
+    const numeroWidth = helvetica.widthOfTextAtSize(numeroText, 9);
     currentPage!.drawText(numeroText, {
       x: xPos + colNumero / 2 - numeroWidth / 2,
-      y: currentY - lineHeight + 6,
-      size: 10,  // Increased from 9
+      y: currentY - lineHeight + 5,
+      size: 9,
       font: helvetica,
     });
     xPos += colNumero;
 
     // CÉDULA
     const cedulaText = `${nota.estudiante?.tipo_cedula || "V"}-${nota.estudiante?.cedula}`;
-    const cedulaWidth = helvetica.widthOfTextAtSize(cedulaText, 9);
+    const cedulaWidth = helvetica.widthOfTextAtSize(cedulaText, 8);
     currentPage!.drawText(cedulaText, {
       x: xPos + colCedula / 2 - cedulaWidth / 2,
-      y: currentY - lineHeight + 6,
-      size: 9,  // Increased from 8
+      y: currentY - lineHeight + 5,
+      size: 8,
       font: helvetica,
     });
     xPos += colCedula;
 
-    // APELLIDOS Y NOMBRES — truncar dinámicamente según el ancho real de la columna
+    // APELLIDOS Y NOMBRES — truncar dinámicamente según el ancho
     const nombreCompleto = `${nota.estudiante?.apellidos || ""} ${nota.estudiante?.nombres || ""}`.trim();
-    // Ajustar el texto para que no exceda el ancho de la celda (con padding de 10px)
-    const maxNombreWidth = colNombre - 10;
+    const maxNombreWidth = colNombre - 6;
     let nombreTruncado = nombreCompleto;
-    while (nombreTruncado.length > 3 && helvetica.widthOfTextAtSize(nombreTruncado, 9) > maxNombreWidth) {
+    while (nombreTruncado.length > 3 && helvetica.widthOfTextAtSize(nombreTruncado, 8) > maxNombreWidth) {
       nombreTruncado = nombreTruncado.slice(0, -1);
     }
     currentPage!.drawText(nombreTruncado, {
-      x: xPos + 5,
-      y: currentY - lineHeight + 6,
-      size: 9,
+      x: xPos + 3,
+      y: currentY - lineHeight + 5,
+      size: 8,
       font: helvetica,
     });
     xPos += colNombre;
 
-    // Notas por criterio - números enteros
-    evaluacion.criterios.forEach((criterio) => {
-      const notaCriterio = nota.notas_criterios.find(
+    // Notas por criterio
+    criterios.forEach((criterio) => {
+      const notaCriterio = nota.notas_criterios?.find(
         (nc) => nc.criterio_numero === criterio.nro_criterio
       );
-      const notaValor = Math.round(notaCriterio?.nota_obtenida || 0).toString();  // Integer
-      const notaWidth = helvetica.widthOfTextAtSize(notaValor, 9);
+      const notaValor = Math.round(notaCriterio?.nota_obtenida || 0).toString();
+      const notaWidth = helvetica.widthOfTextAtSize(notaValor, 8);
       currentPage!.drawText(notaValor, {
         x: xPos + colCriterio / 2 - notaWidth / 2,
-        y: currentY - lineHeight + 6,
-        size: 9,  // Increased from 8
+        y: currentY - lineHeight + 5,
+        size: 8,
         font: helvetica,
       });
       xPos += colCriterio;
     });
 
-    // Nota final (color verde/rojo según aprobado/reprobado) - número entero
-    const notaAprobada = nota.nota_definitiva >= 10;
-    const notaFinalText = Math.round(nota.nota_definitiva).toString();  // Integer
-    const notaFinalWidth = helveticaBold.widthOfTextAtSize(notaFinalText, 10);
+    // Nota final (color verde/rojo) recalculada dinámicamente
+    const notaCalculada = nota.notas_criterios?.reduce((sum, nc) => sum + (nc.nota_obtenida || 0), 0) ?? 0;
+    const notaAprobada = notaCalculada >= 10;
+    const notaFinalText = Math.round(notaCalculada).toString();
+    const notaFinalWidth = helveticaBold.widthOfTextAtSize(notaFinalText, 9);
     currentPage!.drawText(notaFinalText, {
       x: xPos + colNotaFinal / 2 - notaFinalWidth / 2,
-      y: currentY - lineHeight + 6,
-      size: 10,  // Increased from 9
+      y: currentY - lineHeight + 5,
+      size: 9,
       font: helveticaBold,
       color: notaAprobada ? rgb(0, 0.6, 0) : rgb(0.8, 0, 0),
     });
 
     currentY -= lineHeight;
 
-    // Línea separadora (excepto en el último estudiante)
+    // Línea separadora
     if (index < notas.length - 1) {
       currentPage!.drawLine({
         start: { x: margin, y: currentY },
@@ -415,153 +378,82 @@ export async function generarReportePDF(
   });
 
   // Sección de estadísticas
-  if (currentY - 100 < bottomMargin) {
+  if (currentY - 120 < bottomMargin) {
     const newPageData = addNewPage();
     currentPage = newPageData.page;
     currentY = pageHeight - 150;
   }
 
-  currentY -= 25;
+  currentY -= 20;
 
   // Separador antes de estadísticas
   currentPage!.drawLine({
     start: { x: margin, y: currentY },
     end: { x: margin + anchoTotal, y: currentY },
     thickness: 1.5,
-    color: rgb(0, 0, 0),  // Black instead of blue
+    color: rgb(0, 0, 0),
   });
 
-  currentY -= 15;
+  currentY -= 20;
 
-  // Título de estadísticas - sin azul
   currentPage!.drawText("ESTADÍSTICAS GENERALES", {
     x: margin,
     y: currentY,
-    size: 16,  // Increased from 14
+    size: 14,
     font: helveticaBold,
-    color: rgb(0, 0, 0),  // Black instead of blue
+    color: rgb(0, 0, 0),
   });
   
-  currentY -= 25;
+  currentY -= 20;
 
-  // Estadísticas en dos columnas con mejor formato
   const col1X = margin;
-  const col2X = margin + 250;
-  const col3X = margin + 500;
+  const col2X = margin + 200;
   
-  // Fila 1: Promedio y Total
-  currentPage!.drawText("Promedio:", {
-    x: col1X,
-    y: currentY,
-    size: 12,  // Increased from 11
-    font: helveticaBold,
-  });
+  // Fila 1
+  currentPage!.drawText("Promedio:", { x: col1X, y: currentY, size: 10, font: helveticaBold });
+  currentPage!.drawText(estadisticas?.promedio || "0", { x: col1X + 70, y: currentY, size: 10, font: helvetica, color: rgb(0, 0, 0) });
   
-  currentPage!.drawText(estadisticas.promedio, {
-    x: col1X + 75,
-    y: currentY,
-    size: 12,  // Increased
-    font: helvetica,
-    color: rgb(0, 0, 0),  // Black
-  });
+  currentPage!.drawText("Total de Estudiantes:", { x: col2X, y: currentY, size: 10, font: helveticaBold });
+  currentPage!.drawText((estadisticas?.total || 0).toString(), { x: col2X + 110, y: currentY, size: 10, font: helvetica, color: rgb(0, 0, 0) });
   
-  currentPage!.drawText("Total de Estudiantes:", {
-    x: col2X,
-    y: currentY,
-    size: 12,  // Increased
-    font: helveticaBold,
-  });
+  currentY -= 15;
   
-  currentPage!.drawText(estadisticas.total.toString(), {
-    x: col2X + 145,
-    y: currentY,
-    size: 12,  // Increased
-    font: helvetica,
-    color: rgb(0, 0, 0),  // Black
-  });
+  // Fila 2
+  currentPage!.drawText("Nota Máxima:", { x: col1X, y: currentY, size: 10, font: helveticaBold });
+  currentPage!.drawText(estadisticas?.notaMaxima || "0", { x: col1X + 70, y: currentY, size: 10, font: helvetica, color: rgb(0, 0.6, 0) });
   
-  currentY -= 18;
+  currentPage!.drawText("Aprobados:", { x: col2X, y: currentY, size: 10, font: helveticaBold });
+  currentPage!.drawText((estadisticas?.aprobados || 0).toString(), { x: col2X + 110, y: currentY, size: 10, font: helvetica, color: rgb(0, 0.6, 0) });
   
-  // Fila 2: Nota Máxima y Aprobados
-  currentPage!.drawText("Nota Máxima:", {
-    x: col1X,
-    y: currentY,
-    size: 12,  // Increased
-    font: helveticaBold,
-  });
+  currentY -= 15;
   
-  currentPage!.drawText(estadisticas.notaMaxima, {
-    x: col1X + 75,
-    y: currentY,
-    size: 12,  // Increased
-    font: helvetica,
-    color: rgb(0, 0.6, 0),
-  });
+  // Fila 3
+  currentPage!.drawText("Nota Mínima:", { x: col1X, y: currentY, size: 10, font: helveticaBold });
+  currentPage!.drawText(estadisticas?.notaMinima || "0", { x: col1X + 70, y: currentY, size: 10, font: helvetica, color: rgb(0.8, 0, 0) });
   
-  currentPage!.drawText("Aprobados:", {
-    x: col2X,
-    y: currentY,
-    size: 12,  // Increased
-    font: helveticaBold,
-  });
-  
-  currentPage!.drawText(estadisticas.aprobados.toString(), {
-    x: col2X + 145,
-    y: currentY,
-    size: 12,  // Increased
-    font: helvetica,
-    color: rgb(0, 0.6, 0),
-  });
-  
-  currentY -= 18;
-  
-  // Fila 3: Nota Mínima y Reprobados
-  currentPage!.drawText("Nota Mínima:", {
-    x: col1X,
-    y: currentY,
-    size: 12,  // Increased
-    font: helveticaBold,
-  });
-  
-  currentPage!.drawText(estadisticas.notaMinima, {
-    x: col1X + 75,
-    y: currentY,
-    size: 12,  // Increased
-    font: helvetica,
-    color: rgb(0.8, 0, 0),
-  });
-  
-  currentPage!.drawText("Reprobados:", {
-    x: col2X,
-    y: currentY,
-    size: 12,  // Increased
-    font: helveticaBold,
-  });
-  
-  currentPage!.drawText(estadisticas.reprobados.toString(), {
-    x: col2X + 145,
-    y: currentY,
-    size: 12,  // Increased
-    font: helvetica,
-    color: rgb(0.8, 0, 0),
-  });
+  currentPage!.drawText("Reprobados:", { x: col2X, y: currentY, size: 10, font: helveticaBold });
+  currentPage!.drawText((estadisticas?.reprobados || 0).toString(), { x: col2X + 110, y: currentY, size: 10, font: helvetica, color: rgb(0.8, 0, 0) });
 
-  // Generar PDF con nombre descriptivo
+  // Generar PDF
   const pdfBytes = await pdfDoc.save();
   // @ts-expect-error - pdf-lib Uint8Array type incompatible with TS Blob constructor, works fine at runtime
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
 
-  // Construir nombre de archivo: actividad_materia_fecha.pdf
+  // Construir nombre de archivo
   const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9\-_áéíóúÁÉÍÓÚñÑüÜ ]/g, "").trim().replace(/\s+/g, "_");
   const fechaFormateada = evaluacion.fecha ? evaluacion.fecha.split("-").reverse().join("-") : "sin-fecha";
   const nombreArchivo = `${sanitize(evaluacion.nombre_evaluacion || "Evaluacion")}_${sanitize(evaluacion.materia_nombre || "Materia")}_${fechaFormateada}.pdf`;
 
-  // Descargar con nombre descriptivo
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = nombreArchivo;
-  link.click();
+  // Abrir en nueva pestaña
+  const newWindow = window.open(url, "_blank");
+  if (!newWindow) {
+    // Si el navegador bloquea la ventana emergente, lo descargamos
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = nombreArchivo;
+    link.click();
+  }
 
   // Limpiar el URL después de un tiempo
   setTimeout(() => {

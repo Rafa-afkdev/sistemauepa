@@ -110,7 +110,7 @@ export function GradesTable({ notas, evaluacion, onEdit }: GradesTableProps) {
                       onClick={() => onEdit(nota)}
                       className="h-8 w-8 p-0"
                     >
-                      <Edit className="h-4 w-4" />
+                      <Edit className="h-4 w-4"/>
                     </Button>
                   </TableCell>
                 )}
