@@ -1330,7 +1330,8 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
 
     const fontSize = 11;
     const studentName = `${student.apellidos} ${student.nombres}`;
-    const dateFormatted = formatDate(new Date());
+    const d = new Date();
+    const dateFormatted = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
     
     // Line: Estudiante: _________ Grado: _______ Fecha: ________
     page.drawText(`Estudiante:`, { x: leftMargin, y: currentY, size: fontSize, font: arialFont });
@@ -1437,8 +1438,10 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
     page.drawText(gradoAño || "", { x: leftMargin + cursWidth + 5, y: currentY + 1, size: fontSize, font: arialFont });
     page.drawLine({ start: {x: leftMargin + cursWidth, y: currentY - 2}, end: {x: leftMargin + cursWidth + 40, y: currentY - 2}, thickness: 1 });
     
-    page.drawText(`grado/año de Educación`, { x: leftMargin + cursWidth + 45, y: currentY, size: fontSize, font: arialFont });
-    const gradWidth = arialFont.widthOfTextAtSize("grado/año de Educación ", fontSize);
+    const isAno = nivelEducativo === "Educación Media General" || nivelEducativo === "Año" || nivelEducativo?.toLowerCase() === "año";
+    const gradoTexto = `${isAno ? "año" : "grado"} de Educación`;
+    page.drawText(gradoTexto, { x: leftMargin + cursWidth + 45, y: currentY, size: fontSize, font: arialFont });
+    const gradWidth = arialFont.widthOfTextAtSize(`${gradoTexto} `, fontSize);
     
     page.drawText(nivelEducativo || "", { x: leftMargin + cursWidth + 45 + gradWidth + 5, y: currentY + 1, size: fontSize, font: arialFont });
     page.drawLine({ start: {x: leftMargin + cursWidth + 45 + gradWidth, y: currentY - 2}, end: {x: leftMargin + cursWidth + 45 + gradWidth + 80, y: currentY - 2}, thickness: 1 });
