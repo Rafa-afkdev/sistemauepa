@@ -27,7 +27,7 @@ export function CreateConstanciaStudent() {
   const [cedula, setCedula] = useState("");
   const [isOpen, setIsOpen] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [selectedConstanciaType, setSelectedConstanciaType] = useState<'estudio' | 'inscripcion' | 'asistencia'>('estudio');
+  const [selectedConstanciaType, setSelectedConstanciaType] = useState<'estudio' | 'inscripcion' | 'asistencia' | 'citacion'>('estudio');
   const [inscripcionActual, setInscripcionActual] = useState<InscripcionSeccion | null>(null);
   const [periodoNombre, setPeriodoNombre] = useState<string | null>(null);
   const [gradoAño, setGradoAño] = useState<string | null>(null);
@@ -67,8 +67,8 @@ export function CreateConstanciaStudent() {
       generatePdfDocumentConstanciaDeEstudio(estudiantes);
     } else if (selectedConstanciaType === 'inscripcion') {
       generatePdfDocumentConstanciaDeInscripcion(estudiantes);
-    } else if (selectedConstanciaType === 'asistencia') {
-      // Logic for asistencia - requires representative
+    } else if (selectedConstanciaType === 'asistencia' || selectedConstanciaType === 'citacion') {
+      // Logic for asistencia and citacion - requires representative
       const fetchRepresentative = async () => {
         setIsLoading(true);
         try {
@@ -88,7 +88,11 @@ export function CreateConstanciaStudent() {
           }
 
           if (representante) {
-            generatePdfDocumentConstanciaDeAsistencia(estudiantes, representante);
+            if (selectedConstanciaType === 'asistencia') {
+              generatePdfDocumentConstanciaDeAsistencia(estudiantes, representante);
+            } else {
+              generatePdfDocumentConstanciaDeCitacion(estudiantes, representante);
+            }
           } else {
              showToast.error("El estudiante no tiene un representante asignado. No se puede generar la constancia.");
           }
@@ -1260,6 +1264,243 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
   };
 
 
+  const generatePdfDocumentConstanciaDeCitacion = async (student: Estudiantes, representante: Representante) => {
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595.28, 841.89]); // A4 size in points
+
+    const arialFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    
+    const { width, height } = page.getSize();
+    const leftMargin = 60;
+    const rightMargin = 60;
+    let currentY = height - 50;
+
+    const drawUnderlinedText = (text: string, x: number, y: number, fontSize: number, font = arialFont) => {
+      const textWidth = font.widthOfTextAtSize(text, fontSize);
+      page.drawText(text, { x, y, size: fontSize, font });
+      page.drawLine({
+        start: { x, y: y - 2 },
+        end: { x: x + textWidth, y: y - 2 },
+        thickness: 1,
+        color: rgb(0, 0, 0),
+      });
+      return textWidth;
+    };
+
+    const logoColegio = await fetch("/LOGO-COLEGIO.png").then((res) => res.arrayBuffer());
+    const logoAdventista = await fetch("/Logo1.png").then((res) => res.arrayBuffer());
+
+    const embeddedLogoColegio = await pdfDoc.embedPng(logoColegio);
+    const embeddedLogoAdventista = await pdfDoc.embedPng(logoAdventista);
+
+    page.drawImage(embeddedLogoColegio, {
+      x: leftMargin,
+      y: currentY - 55,
+      width: 70,
+      height: 70,
+    });
+
+    page.drawImage(embeddedLogoAdventista, {
+      x: width - rightMargin - 80,
+      y: currentY - 45,
+      width: 80,
+      height: 60,
+    });
+
+    const headerLines = [
+      { text: "U.E.P. ADVENTISTA", font: boldFont },
+      { text: '"ALEJANDRO OROPEZA CASTILLO"', font: boldFont },
+      { text: "Inscrita en el M.P.P.E. N° PD16121517", font: boldFont }
+    ];
+
+    headerLines.forEach(line => {
+      const textWidth = line.font.widthOfTextAtSize(line.text, 12);
+      page.drawText(line.text, { x: (width - textWidth) / 2, y: currentY, size: 12, font: line.font });
+      currentY -= 15;
+    });
+
+    currentY -= 30;
+
+    const titleText = "CITACIÓN AL REPRESENTANTE";
+    const titleWidth = boldFont.widthOfTextAtSize(titleText, 14);
+    drawUnderlinedText(titleText, (width - titleWidth) / 2, currentY, 14, boldFont);
+    
+    currentY -= 40;
+
+    const fontSize = 11;
+    const studentName = `${student.apellidos} ${student.nombres}`;
+    const dateFormatted = formatDate(new Date());
+    
+    // Line: Estudiante: _________ Grado: _______ Fecha: ________
+    page.drawText(`Estudiante:`, { x: leftMargin, y: currentY, size: fontSize, font: arialFont });
+    const estWidth = arialFont.widthOfTextAtSize("Estudiante: ", fontSize);
+    
+    const nameWidth = arialFont.widthOfTextAtSize(studentName, fontSize);
+    let nameDrawSize = fontSize;
+    let maxNameSpace = 340 - leftMargin - estWidth - 10; 
+    if (nameWidth > maxNameSpace) {
+      nameDrawSize = Math.floor(fontSize * (maxNameSpace / nameWidth));
+    }
+    
+    page.drawText(studentName, { x: leftMargin + estWidth + 5, y: currentY + 1, size: nameDrawSize, font: arialFont });
+    page.drawLine({ start: {x: leftMargin + estWidth, y: currentY - 2}, end: {x: 335, y: currentY - 2}, thickness: 1 });
+    
+    page.drawText(`Grado:`, { x: 345, y: currentY, size: fontSize, font: arialFont });
+    const gradoWidth = arialFont.widthOfTextAtSize("Grado: ", fontSize);
+    page.drawText(gradoAño || "", { x: 345 + gradoWidth + 5, y: currentY + 1, size: fontSize, font: arialFont });
+    page.drawLine({ start: {x: 345 + gradoWidth, y: currentY - 2}, end: {x: 435, y: currentY - 2}, thickness: 1 });
+
+    page.drawText(`Fecha:`, { x: 445, y: currentY, size: fontSize, font: arialFont });
+    const fechaWidth = arialFont.widthOfTextAtSize("Fecha: ", fontSize);
+    let dateDrawSize = 9;
+    let dateDrawWidth = arialFont.widthOfTextAtSize(dateFormatted, dateDrawSize);
+    let maxDateSpace = width - rightMargin - (445 + fechaWidth) - 5;
+    if (dateDrawWidth > maxDateSpace) {
+      dateDrawSize = Math.floor(9 * (maxDateSpace / dateDrawWidth));
+    }
+    page.drawText(dateFormatted, { x: 445 + fechaWidth + 5, y: currentY + 1, size: dateDrawSize, font: arialFont });
+    page.drawLine({ start: {x: 445 + fechaWidth, y: currentY - 2}, end: {x: width - rightMargin, y: currentY - 2}, thickness: 1 });
+
+    currentY -= 20;
+
+    // Line: Nombre del Representante: _________ Firma: ________
+    const repName = `${representante.apellidos} ${representante.nombres}`;
+    page.drawText(`Nombre del Representante:`, { x: leftMargin, y: currentY, size: fontSize, font: arialFont });
+    const nRepWidth = arialFont.widthOfTextAtSize("Nombre del Representante: ", fontSize);
+    
+    page.drawText(`Firma:`, { x: 380, y: currentY, size: fontSize, font: arialFont });
+    const firmaWidth = arialFont.widthOfTextAtSize("Firma: ", fontSize);
+
+    let repDrawSize = fontSize;
+    let repWidth = arialFont.widthOfTextAtSize(repName, fontSize);
+    let maxRepSpace = 380 - leftMargin - nRepWidth - 10;
+    if (repWidth > maxRepSpace) {
+      repDrawSize = Math.floor(fontSize * (maxRepSpace / repWidth));
+    }
+
+    page.drawText(repName, { x: leftMargin + nRepWidth + 5, y: currentY + 1, size: repDrawSize, font: arialFont });
+    page.drawLine({ start: {x: leftMargin + nRepWidth, y: currentY - 2}, end: {x: 375, y: currentY - 2}, thickness: 1 });
+
+    page.drawLine({ start: {x: 380 + firmaWidth + 5, y: currentY - 2}, end: {x: width - rightMargin, y: currentY - 2}, thickness: 1 });
+
+    currentY -= 20;
+
+    const notaPrefix = "Nota: ";
+    const line1 = "Se le agradece enviar con su representado (a) esta pestaña, debidamente firmada; como";
+    const line2 = "constancia de haber recibido la Citación. El estudiante deberá entregarla al Docente al día siguiente.";
+    
+    page.drawText(notaPrefix, { x: leftMargin, y: currentY, size: fontSize, font: boldFont });
+    const notaPrefixWidth = boldFont.widthOfTextAtSize(notaPrefix, fontSize);
+    page.drawText(line1, { x: leftMargin + notaPrefixWidth, y: currentY, size: fontSize, font: arialFont });
+    currentY -= 15;
+    page.drawText(line2, { x: leftMargin, y: currentY, size: fontSize, font: arialFont });
+
+    currentY -= 25;
+
+    const dotSpacing = 6;
+    for (let x = leftMargin; x < width - rightMargin; x += dotSpacing) {
+      page.drawText(".", { x, y: currentY, size: 14, font: arialFont });
+    }
+
+    currentY -= 35;
+
+    // Line: Sr(a).: __________ Representante de: ___________
+    page.drawText(`Sr(a).:`, { x: leftMargin, y: currentY, size: fontSize, font: arialFont });
+    const srWidth = arialFont.widthOfTextAtSize("Sr(a).: ", fontSize);
+
+    page.drawText(`Representante de:`, { x: 280, y: currentY, size: fontSize, font: arialFont });
+    const repDeWidth = arialFont.widthOfTextAtSize("Representante de: ", fontSize);
+
+    let srDrawSize = fontSize;
+    let maxSrSpace = 280 - leftMargin - srWidth - 10;
+    if (repWidth > maxSrSpace) {
+      srDrawSize = Math.floor(fontSize * (maxSrSpace / repWidth));
+    }
+    page.drawText(repName, { x: leftMargin + srWidth + 5, y: currentY + 1, size: srDrawSize, font: arialFont });
+    page.drawLine({ start: {x: leftMargin + srWidth, y: currentY - 2}, end: {x: 275, y: currentY - 2}, thickness: 1 });
+
+    let stDrawSize = fontSize;
+    let maxStSpace = width - rightMargin - 280 - repDeWidth - 5;
+    if (nameWidth > maxStSpace) {
+      stDrawSize = Math.floor(fontSize * (maxStSpace / nameWidth));
+    }
+    page.drawText(studentName, { x: 280 + repDeWidth + 5, y: currentY + 1, size: stDrawSize, font: arialFont });
+    page.drawLine({ start: {x: 280 + repDeWidth, y: currentY - 2}, end: {x: width - rightMargin, y: currentY - 2}, thickness: 1 });
+
+    currentY -= 20;
+
+    // cursante de: ______ grado/año de Educación ______. Por medio de la presente le notificamos
+    page.drawText(`cursante de:`, { x: leftMargin, y: currentY, size: fontSize, font: arialFont });
+    const cursWidth = arialFont.widthOfTextAtSize("cursante de: ", fontSize);
+    
+    page.drawText(gradoAño || "", { x: leftMargin + cursWidth + 5, y: currentY + 1, size: fontSize, font: arialFont });
+    page.drawLine({ start: {x: leftMargin + cursWidth, y: currentY - 2}, end: {x: leftMargin + cursWidth + 40, y: currentY - 2}, thickness: 1 });
+    
+    page.drawText(`grado/año de Educación`, { x: leftMargin + cursWidth + 45, y: currentY, size: fontSize, font: arialFont });
+    const gradWidth = arialFont.widthOfTextAtSize("grado/año de Educación ", fontSize);
+    
+    page.drawText(nivelEducativo || "", { x: leftMargin + cursWidth + 45 + gradWidth + 5, y: currentY + 1, size: fontSize, font: arialFont });
+    page.drawLine({ start: {x: leftMargin + cursWidth + 45 + gradWidth, y: currentY - 2}, end: {x: leftMargin + cursWidth + 45 + gradWidth + 80, y: currentY - 2}, thickness: 1 });
+
+    page.drawText(`. Por medio de la presente le notificamos`, { x: leftMargin + cursWidth + 45 + gradWidth + 85, y: currentY, size: fontSize, font: arialFont });
+
+    currentY -= 20;
+
+    // que deberá asistir a la institución el día: ________________ a las: ______________ para atender
+    page.drawText(`que deberá asistir a la institución el día:`, { x: leftMargin, y: currentY, size: fontSize, font: arialFont });
+    const diaWidth = arialFont.widthOfTextAtSize("que deberá asistir a la institución el día: ", fontSize);
+    
+    page.drawText(`a las:`, { x: 340, y: currentY, size: fontSize, font: arialFont });
+    const alasWidth = arialFont.widthOfTextAtSize("a las: ", fontSize);
+    
+    page.drawText(`para atender`, { x: 420, y: currentY, size: fontSize, font: arialFont });
+    
+    page.drawLine({ start: {x: leftMargin + diaWidth + 5, y: currentY - 2}, end: {x: 335, y: currentY - 2}, thickness: 1 });
+    page.drawLine({ start: {x: 340 + alasWidth + 5, y: currentY - 2}, end: {x: 415, y: currentY - 2}, thickness: 1 });
+
+    currentY -= 20;
+    
+    // asuntos relacionados con su representado y su actuación en el colegio. Deberá entrevistarse con:
+    page.drawText(`asuntos relacionados con su representado y su actuación en el colegio. Deberá entrevistarse con:`, { x: leftMargin, y: currentY, size: fontSize, font: arialFont });
+    
+    currentY -= 30;
+
+    const drawCheckbox = (x: number, y: number, label: string) => {
+      page.drawRectangle({ x, y: y - 2, width: 15, height: 10, borderColor: rgb(0,0,0), borderWidth: 1.5 });
+      page.drawText(label, { x: x + 22, y, size: fontSize, font: arialFont });
+    };
+
+    const col1 = leftMargin + 30;
+    const col2 = leftMargin + 180;
+    const col3 = leftMargin + 330;
+
+    drawCheckbox(col1, currentY, "Docente");
+    drawCheckbox(col2, currentY, "Capellanía");
+    drawCheckbox(col3, currentY, "Psicopedagoga");
+    
+    currentY -= 20;
+
+    drawCheckbox(col1, currentY, "Coordinación");
+    drawCheckbox(col2, currentY, "Dirección");
+    
+    drawCheckbox(col3, currentY, "Otro:");
+    page.drawLine({ start: {x: col3 + 55, y: currentY - 2}, end: {x: col3 + 140, y: currentY - 2}, thickness: 1 });
+
+    currentY -= 70;
+
+    page.drawLine({ start: {x: leftMargin + 20, y: currentY}, end: {x: leftMargin + 160, y: currentY}, thickness: 1 });
+    page.drawText("Coordinación", { x: leftMargin + 50, y: currentY - 15, size: fontSize, font: arialFont });
+
+    page.drawText("Sello", { x: width / 2 - 15, y: currentY - 15, size: fontSize, font: arialFont });
+
+    page.drawLine({ start: {x: width - rightMargin - 160, y: currentY}, end: {x: width - rightMargin - 20, y: currentY}, thickness: 1 });
+    page.drawText("Representante", { x: width - rightMargin - 120, y: currentY - 15, size: fontSize, font: arialFont });
+
+    const dataUri = await pdfDoc.saveAsBase64({ dataUri: true });
+    setPdfUrl(dataUri);
+  };
+
   const formatDate = (date: Date) => {
     const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "long", day: "numeric" };
     return date.toLocaleDateString("es-VE", options);
@@ -1338,6 +1579,7 @@ const generatePdfDocumentConstanciaDeInscripcion = async (student: Estudiantes) 
                 <SelectItem value="estudio">Constancia de Estudio</SelectItem>
                 <SelectItem value="inscripcion">Constancia de Inscripción</SelectItem>
                 <SelectItem value="asistencia">Constancia de Asistencia</SelectItem>
+                <SelectItem value="citacion">Citación de Representante</SelectItem>
               </SelectContent>
             </Select>
 

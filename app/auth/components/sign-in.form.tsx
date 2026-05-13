@@ -56,7 +56,6 @@ import * as z from "zod";
         } 
 
       return (
-          <>
           
           <form onSubmit={handleSubmit(onSubmit)}>
             <Card className="backdrop-blur-md bg-white/70 shadow-lg rounded-lg">
@@ -99,7 +98,6 @@ import * as z from "zod";
               </CardFooter>
             </Card>
           </form>
-          </>
         );
   }
   export default SignInForm;
