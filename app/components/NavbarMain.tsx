@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Menu, X, LogIn } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { LogoLanding } from './LogoLanding';
 
 const navLinks = [
   { href: '/', label: 'Inicio' },
@@ -25,19 +24,14 @@ export default function  Navbar() {
     <motion.nav
       initial={{ y: -100 }}
       animate={{ y: 0 }}
-      className="w-full bg-transparent border-b border-transparent absolute top-0 left-0 z-50"
+      className={`w-full absolute top-0 left-0 z-50 transition-all duration-300 ${
+        isOpen
+          ? 'bg-blue-950/95 backdrop-blur-md border-b border-white/10 shadow-2xl'
+          : 'bg-transparent border-b border-transparent'
+      }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center h-24 justify-end md:justify-between">
-          {/* Logo */}
-          <Link href="/" className="hidden md:flex items-center"> 
-            <motion.span 
-              whileHover={{ scale: 1.02 }}
-              className="text-3xl font-heading font-normal text-black tracking-wide"
-            >
-              <LogoLanding />
-            </motion.span>
-          </Link>
+        <div className="flex items-center h-24 justify-end">
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-10">
@@ -83,7 +77,7 @@ export default function  Navbar() {
             <motion.button
               whileHover={{ scale: 1.05 }}
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-full hover:bg-primary-gold/10 transition-all duration-300"
+              className="p-2 rounded-full hover:bg-white/10 transition-all duration-300"
             >
               {isOpen ? (
                 <X className="w-7 h-7 text-white" />
@@ -97,12 +91,15 @@ export default function  Navbar() {
 
       {/* Mobile menu */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: isOpen ? 1 : 0, y: isOpen ? 0 : -20 }}
-        transition={{ duration: 0.3 }}
-        className={`md:hidden ${isOpen ? 'block' : 'hidden'}`}
+        initial={{ height: 0, opacity: 0 }}
+        animate={{
+          height: isOpen ? 'auto' : 0,
+          opacity: isOpen ? 1 : 0,
+        }}
+        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        className="md:hidden overflow-hidden"
       >
-        <div className="px-4 pt-2 pb-6 bg-transparent border-t border-transparent">
+        <div className="px-4 pt-2 pb-6 border-t border-white/10 space-y-1">
           {navLinks.map((link) => (
             <motion.div
               key={link.href}
@@ -110,10 +107,10 @@ export default function  Navbar() {
             >
               <Link
                 href={link.href}
-                className={`block px-3 py-2 text-base font-medium ${
+                className={`block px-4 py-3 text-base font-medium rounded-lg transition-all duration-200 ${
                   isActive(link.href)
-                    ? 'text-yellow-400'
-                    : 'text-white hover:text-yellow-400'
+                    ? 'text-yellow-400 bg-white/5'
+                    : 'text-white/80 hover:text-yellow-400 hover:bg-white/5'
                 }`}
                 onClick={() => setIsOpen(false)}
               >
@@ -121,14 +118,16 @@ export default function  Navbar() {
               </Link>
             </motion.div>
           ))}
-          <Link
-            href="/auth"
-            className="flex items-center gap-2 bg-yellow-400 text-blue-900 px-4 py-2 rounded-full font-medium hover:bg-yellow-300 transition-colors duration-300 mt-4 mx-3 text-center justify-center"
-            onClick={() => setIsOpen(false)}
-          >
-            <LogIn className="w-4 h-4" />
-            Iniciar Sesión
-          </Link>
+          <div className="pt-2">
+            <Link
+              href="/auth"
+              className="flex items-center gap-2 bg-yellow-400 text-blue-900 px-4 py-3 rounded-full font-medium hover:bg-yellow-300 transition-colors duration-300 mx-3 text-center justify-center shadow-lg hover:shadow-yellow-400/20"
+              onClick={() => setIsOpen(false)}
+            >
+              <LogIn className="w-4 h-4" />
+              Iniciar Sesión
+            </Link>
+          </div>
         </div>
       </motion.div>
     </motion.nav>
