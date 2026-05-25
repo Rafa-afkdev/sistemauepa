@@ -70,9 +70,7 @@ export function EditGradeDialog({ open, onOpenChange, nota, evaluacion, onSave }
   const calcularNotaDefinitiva = () => {
     let total = 0;
     evaluacion.criterios.forEach((criterio) => {
-      const notaCriterio = notasCriterios[criterio.nro_criterio] || 0;
-      const porcentaje = criterio.ponderacion / evaluacion.criterios.reduce((sum, c) => sum + c.ponderacion, 0);
-      total += notaCriterio * porcentaje;
+      total += notasCriterios[criterio.nro_criterio] || 0;
     });
     return total;
   };

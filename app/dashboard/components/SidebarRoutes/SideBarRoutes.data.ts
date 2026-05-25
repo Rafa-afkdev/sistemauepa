@@ -35,7 +35,7 @@ export const DataEstudiantesSidebar = [
 export const DataDocenteSidebar = [
     {
         icon: UserPlus2,
-        label: "Registrar Docentes",
+        label: "Mis Docentes",
         href: "/dashboard/docentes", 
     },
     {

@@ -495,8 +495,7 @@ export default function VerEvaluacionesAdmin() {
       evaluacion.criterios.forEach((criterio) => {
         const notaCriterio = nuevasNotasCriterios.find(nc => nc.criterio_numero === criterio.nro_criterio);
         const valor = notaCriterio?.nota_obtenida || 0;
-        const porcentaje = criterio.ponderacion / evaluacion.criterios.reduce((sum, c) => sum + c.ponderacion, 0);
-        nuevaNotaDefinitiva += valor * porcentaje;
+        nuevaNotaDefinitiva += valor;
       });
 
       if (notaId && notaId !== "") {
