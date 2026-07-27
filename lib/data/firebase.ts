@@ -9,26 +9,14 @@ import { getDownloadURL, getStorage, ref, uploadString } from "firebase/storage"
 
 // Your web app's Firebase configuration
 
-//TODO CONFIGURACION DE PRODUCCION
 const firebaseConfig = {
-  apiKey: "AIzaSyC5zYhmNaffwYTp_kDpz7AMZIQLA_1RV-Q",
-  authDomain: "colegiouepa-93545.firebaseapp.com",
-  projectId: "colegiouepa-93545",
-  storageBucket: "colegiouepa-93545.firebasestorage.app",
-  messagingSenderId: "532750479123",
-  appId: "1:532750479123:web:8972db8ca4fd9ed50eb4e6"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || ""
 };
-
-
-//TODO CONFIGURACION DE DESARROLLO
-// const firebaseConfig = {
-//   apiKey: "AIzaSyBRvMoAIwHRlUjy-t7nikzCmcok9O82vU4",
-//   authDomain: "colegiouepa-a7efa.firebaseapp.com",
-//   projectId: "colegiouepa-a7efa",
-//   storageBucket: "colegiouepa-a7efa.firebasestorage.app",
-//   messagingSenderId: "859629992927",
-//   appId: "1:859629992927:web:aabb827e2e3d9b3839a26a"
-// };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);

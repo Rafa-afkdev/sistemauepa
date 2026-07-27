@@ -25,7 +25,7 @@ import {
   query,
   where
 } from "firebase/firestore";
-import { Check, ChevronLeft, ChevronsUpDown, FileText, Loader2, RefreshCw } from "lucide-react";
+import { Check, ChevronLeft, ChevronsUpDown, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { showToast } from "nextjs-toast-notify";
 import { useEffect, useRef, useState } from "react";
@@ -472,12 +472,12 @@ export default function SabanaNotasPage() {
           <CardDescription>Selecciona el periodo, lapso y sección para generar la sábana</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
             {/* Periodo */}
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-3">
               <Label>Periodo Escolar</Label>
               <Select value={periodoId} onValueChange={setPeriodoId} disabled={isLoadingFiltros}>
-                <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona..." /></SelectTrigger>
                 <SelectContent>
                   {periodos.map(p => (
                     <SelectItem key={p.id} value={p.id}>
@@ -489,10 +489,10 @@ export default function SabanaNotasPage() {
             </div>
 
             {/* Lapso */}
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-3">
               <Label>Lapso</Label>
               <Select value={lapsoId} onValueChange={setLapsoId} disabled={!periodoId || isLoadingFiltros}>
-                <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona..." /></SelectTrigger>
                 <SelectContent>
                   {lapsos.map(l => (
                     <SelectItem key={l.id} value={l.id}>
@@ -504,7 +504,7 @@ export default function SabanaNotasPage() {
             </div>
 
             {/* Sección — combobox */}
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-3">
               <Label>Sección</Label>
               <Popover open={openSeccion} onOpenChange={setOpenSeccion}>
                 <PopoverTrigger asChild>
@@ -550,17 +550,15 @@ export default function SabanaNotasPage() {
             </div>
 
             {/* Generate button */}
-            <div className="flex items-end">
-              <Button
-                onClick={buildSabana}
-                disabled={!periodoId || !lapsoId || !seccionId || isLoadingSabana}
-                className="w-full"
-              >
-                {isLoadingSabana
-                  ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generando...</>
-                  : <><RefreshCw className="h-4 w-4 mr-2" /> Generar Sábana</>}
-              </Button>
-            </div>
+            <Button
+              onClick={buildSabana}
+              disabled={!periodoId || !lapsoId || !seccionId || isLoadingSabana}
+              className="md:col-span-3 w-full bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isLoadingSabana
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generando...</>
+                : <><FileSpreadsheet className="h-4 w-4 mr-2" /> Generar Sábana</>}
+            </Button>
           </div>
         </CardContent>
       </Card>

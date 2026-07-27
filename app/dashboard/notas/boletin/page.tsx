@@ -36,7 +36,6 @@ import {
   ChevronsUpDown,
   FileText,
   Loader2,
-  RefreshCw,
   TrendingUp,
   User,
 } from "lucide-react";
@@ -631,11 +630,11 @@ export default function BoletinPage() {
               <Button
                 onClick={buildBoletin}
                 disabled={!periodoId || !seccionId || !estudianteId || isLoadingBoletin}
-                className="w-full"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
               >
                 {isLoadingBoletin
                   ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generando...</>
-                  : <><RefreshCw className="h-4 w-4 mr-2" /> Generar Boletín</>}
+                  : <><BookOpen className="h-4 w-4 mr-2" /> Generar Boletín</>}
               </Button>
             </div>
           </div>
@@ -659,7 +658,7 @@ export default function BoletinPage() {
             <Button
               onClick={handleGeneratePDF}
               disabled={isGeneratingPDF}
-              className="shrink-0"
+              className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white"
             >
               {isGeneratingPDF
                 ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generando PDF...</>

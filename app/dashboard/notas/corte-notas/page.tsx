@@ -386,7 +386,7 @@ export default function CorteNotasPage() {
             <div className="space-y-2 md:col-span-3">
               <Label htmlFor="periodo">Periodo Escolar</Label>
               <Select value={periodoId} onValueChange={setPeriodoId}>
-                <SelectTrigger id="periodo">
+                <SelectTrigger id="periodo" className="w-full">
                   <SelectValue placeholder="Selecciona un periodo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -402,7 +402,7 @@ export default function CorteNotasPage() {
             <div className="space-y-2 md:col-span-3">
               <Label htmlFor="lapso">Lapso</Label>
               <Select value={lapsoSeleccionado} onValueChange={setLapsoSeleccionado} disabled={!periodoId || lapsos.length === 0}>
-                <SelectTrigger id="lapso">
+                <SelectTrigger id="lapso" className="w-full">
                   <SelectValue placeholder="Selecciona un lapso" />
                 </SelectTrigger>
                 <SelectContent>
@@ -419,7 +419,7 @@ export default function CorteNotasPage() {
             <div className="space-y-2 md:col-span-6">
               <Label htmlFor="tipo-generacion">Generar por</Label>
               <Select value={tipoGeneracion} onValueChange={(v) => handleTipoChange(v as TipoGeneracion)}>
-                <SelectTrigger id="tipo-generacion">
+                <SelectTrigger id="tipo-generacion" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -440,7 +440,7 @@ export default function CorteNotasPage() {
             <div className="space-y-2 md:col-span-3">
               <Label htmlFor="seccion">Sección</Label>
               <Select value={seccionSeleccionada} onValueChange={setSeccionSeleccionada} disabled={isLoadingSecciones || !periodoId}>
-                <SelectTrigger id="seccion">
+                <SelectTrigger id="seccion" className="w-full">
                   <SelectValue placeholder={isLoadingSecciones ? "Cargando..." : "Selecciona una sección"} />
                 </SelectTrigger>
                 <SelectContent>
@@ -565,7 +565,7 @@ export default function CorteNotasPage() {
             {tipoGeneracion === "materia" && (
               <Button
                 variant="default"
-                className="md:col-span-3 w-auto px-4 bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="md:col-span-3 w-auto px-4 bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={handlePrintMateria}
                 disabled={!materiaSeleccionada || isLoadingMateriaData || isGeneratingPDF}
               >

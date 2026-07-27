@@ -57,9 +57,9 @@ export function EvaluationSelector({
   };
 
   return (
-    <div className="flex gap-4 w-full">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
       {/* Combobox de Materia */}
-      <div className="space-y-2 flex-1">
+      <div className="space-y-2 min-w-0">
         <Label>Materia</Label>
         <Select
           value={materiaFiltro}
@@ -81,7 +81,7 @@ export function EvaluationSelector({
       </div>
 
       {/* Combobox de Evaluación Completada */}
-      <div className="space-y-2 flex-1">
+      <div className="space-y-2 min-w-0">
         <Label>Evaluación Completada</Label>
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>

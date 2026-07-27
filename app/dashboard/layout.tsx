@@ -31,7 +31,7 @@ export default function LayoutDashboard({children} : {children: React.ReactNode}
         <div className='hidden xl:block w-80 h-full xl:fixed'>
             <Sidebar/>
         </div>
-        <div className='w-full xl:ml-60'>
+        <div className='w-full xl:ml-60 min-w-0 overflow-x-hidden'>
            <NavBar/>
             <div className='p-6 bg-[#ffffff] dark:bg-secondary'>
               {children}

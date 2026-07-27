@@ -534,12 +534,12 @@ export default function VerNotas() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
             {/* Periodo */}
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-4">
               <Label>Periodo Escolar</Label>
               <Select value={periodoId} onValueChange={setPeriodoId} disabled={isLoadingFiltros}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecciona un periodo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -551,10 +551,10 @@ export default function VerNotas() {
             </div>
 
             {/* Lapso */}
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-4">
               <Label>Lapso</Label>
               <Select value={lapsoSeleccionado} onValueChange={setLapsoSeleccionado} disabled={!periodoId || isLoadingFiltros}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecciona un lapso" />
                 </SelectTrigger>
                 <SelectContent>
@@ -566,17 +566,19 @@ export default function VerNotas() {
             </div>
 
             {/* Sección */}
-            <SectionSelector
-              secciones={secciones}
-              seccionSeleccionada={seccionSeleccionada}
-              onSelect={setSeccionSeleccionada}
-              isLoading={isLoadingEvaluaciones}
-              open={openSectionCombobox}
-              setOpen={setOpenSectionCombobox}
-            />
+            <div className="md:col-span-4">
+              <SectionSelector
+                secciones={secciones}
+                seccionSeleccionada={seccionSeleccionada}
+                onSelect={setSeccionSeleccionada}
+                isLoading={isLoadingEvaluaciones}
+                open={openSectionCombobox}
+                setOpen={setOpenSectionCombobox}
+              />
+            </div>
 
-            {/* Materia + Evaluación — ocupa 2 columnas */}
-            <div className="lg:col-span-2">
+            {/* Materia + Evaluación — ocupa toda la segunda fila */}
+            <div className="md:col-span-12">
               <EvaluationSelector
                 evaluaciones={evaluacionesFiltradasPorSeccion}
                 evaluacionSeleccionada={evaluacionSeleccionada}
