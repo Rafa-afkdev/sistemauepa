@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -16,17 +15,20 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { useUser } from "@/hooks/use-user";
 import type { Secciones } from "@/interfaces/secciones.interface";
-import { deleteDocument, getCollection, getCollectionCount, getCollectionPaginated } from "@/lib/data/firebase";
+import type { PeriodosEscolares } from "@/interfaces/periodos-escolares.interface";
+import { deleteDocument, getCollection } from "@/lib/data/firebase";
 import { orderBy } from "firebase/firestore";
 import { ClipboardEdit, Search, X } from "lucide-react";
 import { showToast } from "nextjs-toast-notify";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CreateUpdateSecciones } from "./create-update-secciones";
 import { TableSeccionView } from "./table-view-secciones";
 
@@ -34,178 +36,121 @@ const PAGE_SIZE = 10;
 
 const Secciones = () => {
   const { user } = useUser();
-  const [secciones, setSecciones] = useState<Secciones[]>([]);
+  const [rawSecciones, setRawSecciones] = useState<Secciones[]>([]);
+  const [periodos, setPeriodos] = useState<PeriodosEscolares[]>([]);
+  const [selectedPeriodo, setSelectedPeriodo] = useState<string>("all");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [searchType, setSearchType] = useState<"grado" | "seccion">("grado");
-  const [isSearching, setIsSearching] = useState<boolean>(false);
-  
-  // Estados de paginación
+  const [searchType, setSearchType] = useState<"grado" | "seccion" | "periodo">("grado");
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [totalSecciones, setTotalSecciones] = useState<number>(0);
-  const [lastDocs, setLastDocs] = useState<Map<number, any>>(new Map());
-  const [hasMore, setHasMore] = useState<boolean>(true);
 
-  const totalPages = Math.ceil(totalSecciones / PAGE_SIZE);
-
-  // Obtener el conteo total
-  const getTotalCount = useCallback(async () => {
+  // Cargar periodos escolares
+  const fetchPeriodos = useCallback(async () => {
     try {
-      const count = await getCollectionCount("secciones");
-      setTotalSecciones(count);
-    } catch (error) {
-      console.error("Error obteniendo conteo:", error);
+      const data = (await getCollection("periodos_escolares")) as PeriodosEscolares[];
+      setPeriodos(data);
+    } catch (err) {
+      console.error("Error al cargar periodos:", err);
     }
   }, []);
 
-  // Obtener secciones con paginación
-  const getSecciones = useCallback(async (page: number = 1) => {
-    const path = "secciones";
-    const queryConstraints = [orderBy("grado_año", "asc")];
+  // Cargar secciones
+  const fetchSecciones = useCallback(async () => {
     setIsLoading(true);
-    
     try {
-      const lastDoc = page > 1 ? lastDocs.get(page - 1) : undefined;
-      
-      const result = await getCollectionPaginated(
-        path, 
-        PAGE_SIZE, 
-        lastDoc,
-        queryConstraints
-      );
-      
-      setSecciones(result.docs as Secciones[]);
-      setHasMore(result.hasMore);
-      
-      if (result.lastVisible) {
-        setLastDocs(prev => new Map(prev).set(page, result.lastVisible));
-      }
+      const data = (await getCollection("secciones", [
+        orderBy("grado_año", "asc"),
+      ])) as Secciones[];
+      setRawSecciones(data);
     } catch (error) {
       console.error(error);
-      showToast.error('Ocurrió un error. Intenta nuevamente.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [lastDocs]);
-
-  // Búsqueda global
-  const searchSecciones = useCallback(async (query: string, type: "grado" | "seccion") => {
-    if (!query.trim()) {
-      setIsSearching(false);
-      await refreshSecciones();
-      return;
-    }
-
-    setIsLoading(true);
-    setIsSearching(true);
-    
-    try {
-      const allSecciones = await getCollection("secciones", [orderBy("grado_año", "asc")]) as Secciones[];
-      
-      const filtered = allSecciones.filter((seccion) => {
-        if (type === "grado") {
-          const gradoCompleto = `${seccion.grado_año} ${seccion.nivel_educativo}`.toLowerCase();
-          return gradoCompleto.includes(query.toLowerCase());
-        } else {
-          return seccion.seccion.toLowerCase().includes(query.toLowerCase());
-        }
-      });
-      
-      setSecciones(filtered);
-    } catch (error) {
-      console.error("Error en búsqueda:", error);
-      showToast.error("Error al buscar secciones");
+      showToast.error("Ocurrió un error al cargar las secciones.");
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Efecto inicial
   useEffect(() => {
     if (user?.uid) {
-      getTotalCount();
-      getSecciones(1);
+      fetchPeriodos();
+      fetchSecciones();
     }
-  }, [user?.uid]);
+  }, [user?.uid, fetchPeriodos, fetchSecciones]);
 
-  // Efecto de búsqueda con debounce
+  // Mapa de periodos para búsqueda y visualización
+  const periodosMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    periodos.forEach((p) => {
+      if (p.id) map[p.id] = p.periodo;
+    });
+    return map;
+  }, [periodos]);
+
+  // Periodos activos
+  const periodosActivos = useMemo(() => {
+    return periodos
+      .filter((p) => (p.status || "").toUpperCase() === "ACTIVO")
+      .slice()
+      .sort((a, b) => (b.periodo || "").localeCompare(a.periodo || "", undefined, { numeric: true }));
+  }, [periodos]);
+
+  // Otros periodos
+  const periodosOtros = useMemo(() => {
+    return periodos
+      .filter((p) => (p.status || "").toUpperCase() !== "ACTIVO")
+      .slice()
+      .sort((a, b) => (b.periodo || "").localeCompare(a.periodo || "", undefined, { numeric: true }));
+  }, [periodos]);
+
+  // Filtrado de secciones por Periodo Escolar y búsqueda por texto
+  const filteredSecciones = useMemo(() => {
+    let result = rawSecciones;
+
+    // 1. Filtrar por periodo escolar seleccionado
+    if (selectedPeriodo && selectedPeriodo !== "all") {
+      result = result.filter((s) => s.id_periodo_escolar === selectedPeriodo);
+    }
+
+    // 2. Filtrar por texto de búsqueda
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter((seccion) => {
+        if (searchType === "grado") {
+          const gradoCompleto = `${seccion.grado_año} ${seccion.nivel_educativo}`.toLowerCase();
+          return gradoCompleto.includes(q);
+        } else if (searchType === "seccion") {
+          return (seccion.seccion || "").toLowerCase().includes(q);
+        } else if (searchType === "periodo") {
+          const nombrePeriodo = (periodosMap[seccion.id_periodo_escolar] || seccion.id_periodo_escolar || "").toLowerCase();
+          return nombrePeriodo.includes(q);
+        }
+        return true;
+      });
+    }
+
+    return result;
+  }, [rawSecciones, selectedPeriodo, searchQuery, searchType, periodosMap]);
+
+  const totalSecciones = filteredSecciones.length;
+  const totalPages = Math.max(1, Math.ceil(totalSecciones / PAGE_SIZE));
+
+  // Secciones paginadas para la vista actual
+  const paginatedSecciones = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredSecciones.slice(start, start + PAGE_SIZE);
+  }, [filteredSecciones, currentPage]);
+
+  // Ajustar página si la actual excede el nuevo total
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (searchQuery) {
-        searchSecciones(searchQuery, searchType);
-      } else if (isSearching) {
-        setIsSearching(false);
-        refreshSecciones();
-      }
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, searchType]);
-
-  // Navegación de páginas
-  const handlePageChange = async (page: number) => {
-    if (page < 1 || page > totalPages || page === currentPage) return;
-    
-    if (page < currentPage) {
-      setLastDocs(new Map());
+    if (currentPage > totalPages) {
       setCurrentPage(1);
-      await loadPagesToPage(page);
-    } else {
-      setCurrentPage(page);
-      await getSecciones(page);
     }
-  };
-
-  const loadPagesToPage = async (targetPage: number) => {
-    const path = "secciones";
-    const queryConstraints = [orderBy("grado_año", "asc")];
-    setIsLoading(true);
-    
-    try {
-      let currentLastDoc: any = undefined;
-      const newLastDocs = new Map<number, any>();
-      
-      for (let p = 1; p <= targetPage; p++) {
-        const result = await getCollectionPaginated(
-          path,
-          PAGE_SIZE,
-          currentLastDoc,
-          queryConstraints
-        );
-        
-        if (result.lastVisible) {
-          newLastDocs.set(p, result.lastVisible);
-          currentLastDoc = result.lastVisible;
-        }
-        
-        if (p === targetPage) {
-          setSecciones(result.docs as Secciones[]);
-          setHasMore(result.hasMore);
-        }
-      }
-      
-      setLastDocs(newLastDocs);
-      setCurrentPage(targetPage);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Recargar lista
-  const refreshSecciones = async () => {
-    await getTotalCount();
-    setLastDocs(new Map());
-    setCurrentPage(1);
-    await getSecciones(1);
-  };
+  }, [totalPages, currentPage]);
 
   // Limpiar búsqueda
   const clearSearch = () => {
     setSearchQuery("");
-    setIsSearching(false);
-    refreshSecciones();
+    setCurrentPage(1);
   };
 
   const deleteSeccion = async (seccion: Secciones) => {
@@ -215,11 +160,7 @@ const Secciones = () => {
     try {
       await deleteDocument(path);
       showToast.success("La sección fue eliminada exitosamente");
-      if (isSearching) {
-        await searchSecciones(searchQuery, searchType);
-      } else {
-        await refreshSecciones();
-      }
+      await fetchSecciones();
     } catch (error: any) {
       showToast.error(error.message, { duration: 2500 });
     } finally {
@@ -227,22 +168,22 @@ const Secciones = () => {
     }
   };
 
-  // Generar números de página
+  // Generar números de página para la paginación
   const getPageNumbers = () => {
     const pages: number[] = [];
     const maxVisible = 5;
-    
+
     let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
     let end = Math.min(totalPages, start + maxVisible - 1);
-    
+
     if (end - start + 1 < maxVisible) {
       start = Math.max(1, end - maxVisible + 1);
     }
-    
+
     for (let i = start; i <= end; i++) {
       pages.push(i);
     }
-    
+
     return pages;
   };
 
@@ -252,7 +193,7 @@ const Secciones = () => {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="text-2xl">Secciones</CardTitle>
-            <CreateUpdateSecciones getSecciones={refreshSecciones}>
+            <CreateUpdateSecciones getSecciones={fetchSecciones}>
               <Button variant="outline">
                 Crear Nueva Sección
                 <ClipboardEdit className="ml-2 w-5" />
@@ -260,47 +201,97 @@ const Secciones = () => {
             </CreateUpdateSecciones>
           </div>
           <CardDescription>
-            <div className="flex items-center mt-4 gap-4">
-              <Select
-                value={searchType}
-                onValueChange={(value: "grado" | "seccion") => setSearchType(value)}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Buscar por..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="grado">Grado/Año</SelectItem>
-                  <SelectItem value="seccion">Sección (A, B, C...)</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center mt-4 gap-3 sm:gap-4">
+              {/* Selector de Periodo Escolar */}
+              <div className="w-full sm:w-[220px]">
+                <Select
+                  value={selectedPeriodo}
+                  onValueChange={(value) => {
+                    setSelectedPeriodo(value);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-white">
+                    <SelectValue placeholder="Periodo Escolar" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[280px]">
+                    <SelectItem value="all">Todos los períodos</SelectItem>
+                    {periodosActivos.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Activo</SelectLabel>
+                        {periodosActivos.map((periodo) => (
+                          <SelectItem key={periodo.id} value={periodo.id!}>
+                            {periodo.periodo} (Activo)
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {periodosOtros.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Otros períodos</SelectLabel>
+                        {periodosOtros.map((periodo) => (
+                          <SelectItem key={periodo.id} value={periodo.id!}>
+                            {periodo.periodo}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Selector de Tipo de Búsqueda */}
+              <div className="w-full sm:w-[170px]">
+                <Select
+                  value={searchType}
+                  onValueChange={(value: "grado" | "seccion" | "periodo") => setSearchType(value)}
+                >
+                  <SelectTrigger className="w-full bg-white">
+                    <SelectValue placeholder="Buscar por..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="grado">Grado/Año</SelectItem>
+                    <SelectItem value="seccion">Sección</SelectItem>
+                    <SelectItem value="periodo">Periodo Escolar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Input de búsqueda */}
               <div className="relative flex-grow">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-800" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <Input
                   type="text"
-                  placeholder={searchType === "grado" ? "Buscar por grado/año..." : "Buscar por sección..."}
+                  placeholder={
+                    searchType === "grado"
+                      ? "Buscar por grado/año..."
+                      : searchType === "seccion"
+                      ? "Buscar por sección (A, B, C...)..."
+                      : "Buscar por período escolar..."
+                  }
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-10"
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="pl-9 pr-10 bg-white"
                 />
                 {searchQuery && (
                   <button
                     onClick={clearSearch}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 )}
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              {isSearching ? (
-                <>Resultados de búsqueda: {secciones.length} sección(es) encontrada(s)</>
-              ) : (
-                <>
-                  Mostrando {secciones.length} de {totalSecciones} secciones
-                  {totalPages > 0 && ` • Página ${currentPage} de ${totalPages}`}
-                </>
-              )}
+
+            <p className="text-sm text-muted-foreground mt-3">
+              Mostrando {paginatedSecciones.length} de {totalSecciones} secciones
+              {selectedPeriodo !== "all" && periodosMap[selectedPeriodo] ? ` • Periodo ${periodosMap[selectedPeriodo]}` : ""}
+              {searchQuery.trim() ? ` • Filtrado por "${searchQuery}"` : ""}
+              {totalSecciones > 0 && ` • Página ${currentPage} de ${totalPages}`}
             </p>
           </CardDescription>
         </CardHeader>
@@ -308,19 +299,19 @@ const Secciones = () => {
         <CardContent>
           <TableSeccionView
             deleteSeccion={deleteSeccion}
-            getSecciones={refreshSecciones}
-            secciones={secciones}
+            getSecciones={fetchSecciones}
+            secciones={paginatedSecciones}
             isLoading={isLoading}
           />
         </CardContent>
 
         <CardFooter className="flex justify-center">
-          {totalPages > 1 && !isSearching && (
+          {totalPages > 1 && (
             <Pagination>
               <PaginationContent>
                 <PaginationItem>
                   <PaginationPrevious 
-                    onClick={() => handlePageChange(currentPage - 1)}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                   />
                 </PaginationItem>
@@ -328,7 +319,7 @@ const Secciones = () => {
                 {getPageNumbers().map((pageNum) => (
                   <PaginationItem key={pageNum}>
                     <PaginationLink
-                      onClick={() => handlePageChange(pageNum)}
+                      onClick={() => setCurrentPage(pageNum)}
                       isActive={pageNum === currentPage}
                       className="cursor-pointer"
                     >
@@ -339,8 +330,8 @@ const Secciones = () => {
                 
                 <PaginationItem>
                   <PaginationNext 
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    className={!hasMore || currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
                   />
                 </PaginationItem>
               </PaginationContent>
