@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 
 export async function POST(request: NextRequest) {
@@ -22,8 +22,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const fromAddress = process.env.RESEND_FROM_EMAIL || 'Colegio UEPA <onboarding@resend.dev>';
     const { data, error } = await resend.emails.send({
-      from: 'Acme <onboarding@resend.dev>',
+      from: fromAddress,
       to: sendTo,
       subject: subject,
       html: body,
@@ -40,10 +41,11 @@ export async function POST(request: NextRequest) {
 
     console.log("Email sent successfully:", data);
     return NextResponse.json({ success: true, data }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Failed to send email:", error);
+    const message = error instanceof Error ? error.message : "Internal server error";
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: message },
       { status: 500 }
     );
   }

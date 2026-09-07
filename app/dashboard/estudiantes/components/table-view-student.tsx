@@ -72,23 +72,28 @@ export function TableStudentView({
 
     const current: Record<string, InscripcionSeccion> = {};
     Object.entries(byStudent).forEach(([studentId, list]) => {
-      // Prefer activo, otherwise latest by fecha_inscripcion
-      const activo = list.find((l) => l.estado?.toLowerCase() === "activo");
-      if (activo) {
-        current[studentId] = activo;
-      } else {
-        const latest = list
-          .slice()
-          .sort((a, b) => {
-            const ta = (a.fecha_inscripcion as any)?.seconds || 0;
-            const tb = (b.fecha_inscripcion as any)?.seconds || 0;
-            return tb - ta;
-          })[0];
-        if (latest) current[studentId] = latest;
+      const studentObj = students.find((s) => s.id === studentId);
+      let matching: InscripcionSeccion | undefined;
+
+      // 1. Priorizar la inscripción que coincida con el periodo_escolar_actual del estudiante
+      if (studentObj?.periodo_escolar_actual) {
+        matching = list.find((l) => l.id_periodo_escolar === studentObj.periodo_escolar_actual);
       }
+
+      // 2. Si no coincide, buscar por la fecha más reciente
+      if (!matching) {
+        const sorted = list.slice().sort((a, b) => {
+          const ta = (a.fecha_inscripcion as any)?.seconds || (a.createdAt as any)?.seconds || 0;
+          const tb = (b.fecha_inscripcion as any)?.seconds || (b.createdAt as any)?.seconds || 0;
+          return tb - ta;
+        });
+        matching = sorted.find((l) => l.estado?.toLowerCase() === "activo") || sorted[0];
+      }
+
+      if (matching) current[studentId] = matching;
     });
     return current;
-  }, [inscripciones]);
+  }, [inscripciones, students]);
 
   return (
     <>
@@ -137,13 +142,15 @@ export function TableStudentView({
           <TableBody>
             {!isLoading &&
               students &&
-              students.map((student) => {
+              students.map((student, idx) => {
                 const ins = student.id ? currentInscripcionByStudent[student.id] : undefined;
-                const seccion = ins?.id_seccion ? seccionesMap[ins.id_seccion] : undefined;
-                const periodo = ins?.id_periodo_escolar ? periodosMap[ins.id_periodo_escolar] : undefined;
-                const estaInscrito = (ins?.estado || "").toLowerCase() === "activo";
+                const seccionId = ins?.id_seccion || student.seccion_actual;
+                const seccion = seccionId ? seccionesMap[seccionId] : undefined;
+                const periodoId = ins?.id_periodo_escolar || student.periodo_escolar_actual;
+                const periodo = periodoId ? periodosMap[periodoId] : undefined;
+                const estaInscrito = (ins?.estado || student.estado || "").toLowerCase() === "activo";
                 return (
-                <TableRow key={student.id}>
+                <TableRow key={student.id || `student-${student.cedula || idx}`}>
                   <TableCell>{student.cedula}</TableCell>
                   <TableCell>
                     {student.nombres + " " + student.apellidos}

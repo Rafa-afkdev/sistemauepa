@@ -43,9 +43,10 @@ export async function sendVerificationCode(email: string): Promise<{ success: bo
 
     console.log(`Verification code sent to ${email}`);
     return { success: true };
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error sending verification code:", error);
-    return { success: false, error: "Error al enviar el código de verificación" };
+    const message = error instanceof Error ? error.message : "Error al enviar el código de verificación";
+    return { success: false, error: message };
   }
 }
 
