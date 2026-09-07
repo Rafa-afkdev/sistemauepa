@@ -34,10 +34,7 @@ import { where } from "firebase/firestore";
 import React from "react";
 import { CreateUpdatePeriodoEscolar } from "./create-update-periodos-escolares.form";
 import { getCollection, updateDocument } from "@/lib/data/firebase";
-import { Input } from "@/components/ui/input";
-import { auth } from "@/lib/data/firebase";
 import { showToast } from "nextjs-toast-notify";
-import { sendVerificationCode, verifyCode } from "@/actions/verification-code";
 
 export function TableViewPeriodoEscolar({
   periodos_escolares,
@@ -53,50 +50,12 @@ export function TableViewPeriodoEscolar({
   const [selectedPeriodo, setSelectedPeriodo] = useState<PeriodosEscolares | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  const [verificationCode, setVerificationCode] = useState("");
-  const [authError, setAuthError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentEmail, setCurrentEmail] = useState<string>("");
-  const [codeSent, setCodeSent] = useState(false);
-  const [isSendingCode, setIsSendingCode] = useState(false);
 
   // Función para confirmar el cambio de estado
   const confirmStatusChange = (periodo_escolar: PeriodosEscolares) => {
     setSelectedPeriodo(periodo_escolar);
-    setVerificationCode("");
-    setAuthError(null);
-    setCodeSent(false);
-    setCurrentEmail(auth.currentUser?.email ?? "");
     setOpenDialog(true);
-  };
-
-  // Función para enviar código de verificación
-  const handleSendCode = async () => {
-    const email = auth.currentUser?.email;
-    if (!email) {
-      setAuthError("No hay un usuario autenticado.");
-      showToast.error("No hay un usuario autenticado.", {});
-      return;
-    }
-
-    setIsSendingCode(true);
-    setAuthError(null);
-
-    try {
-      const result = await sendVerificationCode(email);
-      if (result.success) {
-        setCodeSent(true);
-        showToast.success("Código enviado a tu correo electrónico.", {});
-      } else {
-        setAuthError(result.error || "Error al enviar el código");
-        showToast.error(result.error || "Error al enviar el código", {});
-      }
-    } catch (error) {
-      setAuthError("Error al enviar el código de verificación");
-      showToast.error("Error al enviar el código de verificación", {});
-    } finally {
-      setIsSendingCode(false);
-    }
   };
 
   const updateStudentsToRetired = async (periodoId: string) => {
@@ -114,40 +73,12 @@ export function TableViewPeriodoEscolar({
       console.error("Error al actualizar estudiantes a RETIRADO:", error);
     }
   };
+
   // Función para actualizar el estado del período escolar a "INACTIVO"
   const setPeriodoInactivo = async () => {
     if (!selectedPeriodo) return;
     try {
-      setAuthError(null);
       setIsProcessing(true);
-      const user = auth.currentUser;
-      if (!user || !user.email) {
-        setAuthError("No hay un usuario autenticado.");
-        showToast.error("No hay un usuario autenticado.", {});
-        return;
-      }
-
-      if (!codeSent) {
-        setAuthError("Debes solicitar un código de verificación primero.");
-        showToast.error("Debes solicitar un código de verificación primero.", {});
-        return;
-      }
-
-      if (!verificationCode || verificationCode.length !== 6) {
-        setAuthError("Debes ingresar el código de 6 dígitos.");
-        showToast.error("Debes ingresar el código de 6 dígitos.", {});
-        return;
-      }
-
-      // Verify code
-      const verifyResult = await verifyCode(user.email, verificationCode);
-      if (!verifyResult.success) {
-        setAuthError(verifyResult.error || "Código inválido");
-        showToast.error(verifyResult.error || "Código inválido", {});
-        return;
-      }
-
-      // Code verified, proceed with update
       await updateDocument(`periodos_escolares/${selectedPeriodo.id}`, { status: "INACTIVO" });
       console.log(`El período escolar ${selectedPeriodo.periodo} ha sido actualizado a INACTIVO.`);
       if (selectedPeriodo.id) {
@@ -157,16 +88,11 @@ export function TableViewPeriodoEscolar({
       }
       await getPeriodosEscolares();
       
-      // success -> close dialog
-      showToast.success("Período escolar actualizado a INACTIVO.", {});
+      showToast.success(`El período escolar ${selectedPeriodo.periodo} ha sido cambiado a INACTIVO.`, {});
       setOpenDialog(false);
       setSelectedPeriodo(null);
-      setVerificationCode("");
-      setCodeSent(false);
-      setAuthError(null);
     } catch (error) {
       console.error("Error al actualizar el estado del período escolar:", error);
-      setAuthError("Error al actualizar el período escolar.");
       showToast.error("Error al actualizar el período escolar.", {});
     } finally {
       setIsProcessing(false);
@@ -287,65 +213,28 @@ export function TableViewPeriodoEscolar({
         )}
       </div>
 
-      {/* Dialog de confirmación para cambiar estado */}
+      {/* Dialog de confirmación para cambiar estado a INACTIVO */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
             <DialogTitle>¿Estás seguro?</DialogTitle>
           </DialogHeader>
-          <p>¿Deseas cambiar el estado del período escolar {selectedPeriodo?.periodo} a INACTIVO?</p>
-          <div className="space-y-3 mt-4">
-            {currentEmail && (
-              <p className="text-sm text-gray-700">Usuario: <span className="font-medium">{currentEmail}</span></p>
-            )}
-            
-            {!codeSent ? (
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600">Para confirmar esta acción, te enviaremos un código de verificación a tu correo electrónico.</p>
-                <Button
-                  type="button"
-                  onClick={handleSendCode}
-                  disabled={isSendingCode}
-                  className="w-full bg-blue-500 hover:bg-blue-600 text-white"
-                >
-                  {isSendingCode ? "Enviando..." : "Enviar código de verificación"}
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <label className="text-sm text-gray-600">Ingresa el código de 6 dígitos enviado a tu correo</label>
-                <Input
-                  type="text"
-                  placeholder="000000"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  maxLength={6}
-                  className="text-center text-2xl tracking-widest"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={handleSendCode}
-                  disabled={isSendingCode}
-                  className="w-full text-sm"
-                >
-                  {isSendingCode ? "Reenviando..." : "Reenviar código"}
-                </Button>
-              </div>
-            )}
-            
-            {authError && (
-              <p className="text-red-600 text-sm">{authError}</p>
-            )}
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-gray-700">
+              ¿Deseas cambiar el estado del período escolar <span className="font-semibold text-gray-900">{selectedPeriodo?.periodo}</span> a <span className="font-semibold text-red-600">INACTIVO</span>?
+            </p>
+            <p className="text-xs text-gray-500">
+              Nota: Al cerrar este período escolar, todos los estudiantes actualmente inscritos en él pasarán automáticamente al estado <span className="font-medium text-gray-700">RETIRADO</span>.
+            </p>
           </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpenDialog(false)}>
+          <DialogFooter className="gap-2 sm:gap-0 pt-2">
+            <Button variant="ghost" onClick={() => setOpenDialog(false)} disabled={isProcessing}>
               Cancelar
             </Button>
             <Button
-              className="bg-blue-500 text-white hover:bg-blue-600"
+              className="bg-blue-600 text-white hover:bg-blue-700"
               onClick={setPeriodoInactivo}
-              disabled={isProcessing || !codeSent || verificationCode.length !== 6}
+              disabled={isProcessing}
             >
               {isProcessing ? "Procesando..." : "Confirmar"}
             </Button>
